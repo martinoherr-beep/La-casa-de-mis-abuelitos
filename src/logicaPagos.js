@@ -1,17 +1,42 @@
-import { differenceInDays, startOfDay } from 'date-fns';
+import { differenceInDays, startOfDay, addDays, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
-export const calcularEstadoPago = (fechaPago, tipo) => {
-  if (tipo !== 'Mensual') return "Al día";
+export const calcularEstadoPago = (fechaUltimoPago, tipoPeriodo) => {
+  if (!fechaUltimoPago) return "Sin registros";
 
+  // IMPORTANTE: 'hoy' es la fecha real del sistema
   const hoy = startOfDay(new Date());
-  const inicio = startOfDay(new Date(fechaPago));
   
-  // Calculamos cuántos días han pasado
-  const diasTranscurridos = differenceInDays(hoy, inicio);
+  // 'fechaPago' es la fecha que TÚ elegiste en el calendario (ej: 9 de marzo)
+  const [year, month, day] = fechaUltimoPago.split('-');
+  const fechaPago = startOfDay(new Date(year, month - 1, day));
   
-  // Determinamos la semana (1 a 4)
-  const semana = Math.floor(diasTranscurridos / 7) + 1;
+  // Calculamos cuántos días han pasado desde esa fecha elegida hasta hoy
+  const diasTranscurridos = differenceInDays(hoy, fechaPago);
 
-  if (semana > 4) return "⚠️ Vencido (Pagar)";
-  return `Semana ${semana} de 4`;
+  let limiteDias = 0;
+  if (tipoPeriodo === 'Semanal') limiteDias = 7;
+  else if (tipoPeriodo === 'Quincenal') limiteDias = 15;
+  else if (tipoPeriodo === 'Mensual') limiteDias = 30;
+
+  if (diasTranscurridos >= limiteDias) {
+    return `⚠️ Vencido`;
+  } else {
+    return `✅ Al día`;
+  }
+};
+
+export const obtenerFechaVencimiento = (fechaUltimoPago, tipoPeriodo) => {
+  if (!fechaUltimoPago) return "-";
+  
+  let diasAAgregar = 0;
+  if (tipoPeriodo === 'Semanal') diasAAgregar = 7;
+  else if (tipoPeriodo === 'Quincenal') diasAAgregar = 15;
+  else if (tipoPeriodo === 'Mensual') diasAAgregar = 30;
+
+  const [year, month, day] = fechaUltimoPago.split('-');
+  const fechaBase = new Date(year, month - 1, day);
+  
+  const fechaVence = addDays(fechaBase, diasAAgregar);
+  return format(fechaVence, "d 'de' MMM", { locale: es });
 };
