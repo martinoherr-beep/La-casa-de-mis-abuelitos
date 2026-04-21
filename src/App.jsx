@@ -93,64 +93,124 @@ function App() {
   return (
     <div className="main-wrapper">
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body { 
-          background-color: #f0f4f8; 
-          font-family: 'Segoe UI', sans-serif;
-          display: flex;
-          justify-content: center;
-        }
-        
-        .main-wrapper {
-          width: 100%;
-          max-width: 1000px;
-          padding: 15px;
-        }
+  /* Reset global para evitar desbordes */
+  * { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+  }
+  
+  body { 
+    background-color: #f0f4f8; 
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden; /* Evita el scroll horizontal fantasma */
+  }
+  
+  .main-wrapper {
+    width: 100%;
+    max-width: 1000px;
+    padding: 10px; /* Reducimos el padding en móvil */
+  }
 
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { color: #0277bd; font-size: 1.8rem; }
-        .header p { color: #c62828; font-size: 0.7rem; font-weight: bold; }
+  @media (min-width: 768px) {
+    .main-wrapper { padding: 20px; }
+  }
 
-        .card { background: white; border-radius: 15px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        
-        .summary-card { 
-          background: #b3e5fc; color: #0277bd; 
-          display: flex; flex-direction: column; align-items: center; text-align: center; gap: 15px;
-        }
+  .header { text-align: center; margin: 15px 0; }
+  .header h1 { color: #0277bd; font-size: clamp(1.4rem, 5vw, 2rem); }
 
-        @media (min-width: 768px) {
-          .summary-card { flex-direction: row; justify-content: space-between; text-align: left; }
-        }
+  /* Tarjetas elásticas */
+  .card { 
+    background: white; 
+    border-radius: 15px; 
+    padding: 15px; 
+    margin-bottom: 15px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    width: 100%; /* Forzamos que no exceda el contenedor */
+  }
 
-        .btn-group { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-        @media (min-width: 768px) { .btn-group { flex-direction: row; width: auto; } }
+  .summary-card { 
+    background: #b3e5fc; 
+    color: #0277bd; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 15px;
+  }
 
-        .btn { 
-          padding: 12px; border-radius: 10px; border: 1.5px solid #0277bd; 
-          background: white; color: #0277bd; font-weight: bold; cursor: pointer; width: 100%;
-        }
-        @media (min-width: 768px) { .btn { width: auto; min-width: 110px; } }
-        .btn-pdf { color: #c62828; border-color: #c62828; }
+  @media (min-width: 768px) {
+    .summary-card { flex-direction: row; justify-content: space-between; padding: 25px; }
+  }
 
-        .grid-layout { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        @media (min-width: 768px) { .grid-layout { grid-template-columns: repeat(3, 1fr); } }
+  /* Botones que se apilan sin salirse */
+  .btn-group { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+    width: 100%; 
+  }
+  
+  @media (min-width: 768px) {
+    .btn-group { flex-direction: row; width: auto; }
+  }
 
-        .input-box { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; }
-        .btn-submit { width: 100%; padding: 12px; background: #0277bd; color: white; border: none; border-radius: 10px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+  .btn { 
+    padding: 12px; 
+    border-radius: 10px; 
+    border: 1.5px solid #0277bd; 
+    background: white; 
+    color: #0277bd; 
+    font-weight: bold; 
+    cursor: pointer; 
+    width: 100%; /* Ocupa todo el ancho en móvil */
+    font-size: 14px;
+  }
+  
+  @media (min-width: 768px) {
+    .btn { width: auto; min-width: 110px; }
+  }
 
-        .table-scroll { overflow-x: auto; background: white; border-radius: 15px; width: 100%; }
-        table { width: 100%; border-collapse: collapse; min-width: 500px; }
-        th { background: #f8fafc; padding: 12px; font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
-        td { padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center; font-size: 0.85rem; }
+  /* Cuadrícula de formularios */
+  .grid-layout { 
+    display: grid; 
+    grid-template-columns: 1fr; 
+    gap: 15px; 
+    width: 100%;
+  }
+  
+  @media (min-width: 768px) {
+    .grid-layout { grid-template-columns: repeat(3, 1fr); }
+  }
 
-        .badge { padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; }
-        .badge-maternal { background: #f3e5f5; color: #7b1fa2; }
-        .badge-lactantes { background: #e1f5fe; color: #0288d1; }
-        .badge-preescolar { background: #fff3e0; color: #ef6c00; }
+  .input-box { 
+    width: 100%; 
+    padding: 12px; 
+    margin-top: 8px; 
+    border: 1px solid #ddd; 
+    border-radius: 10px; 
+    font-size: 16px;
+    -webkit-appearance: none; /* Evita estilos raros en iPhone */
+  }
 
-        @media print { .no-print { display: none !important; } }
-      `}</style>
+  /* Tabla con scroll lateral táctil */
+  .table-scroll { 
+    overflow-x: auto; 
+    background: white; 
+    border-radius: 15px; 
+    width: 100%;
+    -webkit-overflow-scrolling: touch; /* Scroll suave en móvil */
+  }
+
+  table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    min-width: 550px; /* Ancho mínimo para que no se amontone el texto */
+  }
+
+  @media print { .no-print { display: none !important; } }
+`}</style>
 
       <div className="container">
         <header className="header">
