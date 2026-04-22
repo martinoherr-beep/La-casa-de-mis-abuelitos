@@ -39,30 +39,16 @@ function App() {
       setProductosCocina(snap.docs.map(d => ({ ...d.data(), id: d.id })));
     });
   }, []);
-
-  // --- LÓGICA DE GEMINI ---
 const consultarMenuIA = async () => {
   if (productosCocina.length === 0) return alert("Agrega productos al mandado primero.");
   
-  setCargandoIA(true);
-  try {
-    // IMPORTANTE: Asegúrate de que la clave esté SOLA entre las comillas
-    // Ejemplo correcto: const key = "AIzaSy..."
-    const genAI = new GoogleGenerativeAI("AIzaSyDZs25EUv-XTSnS49wFWaWFvg2H7umzqKs");
+  const ingredientes = productosCocina.map(p => p.nombre).join(", ");
+  const prompt = `Actúa como nutriólogo de guardería. Tengo estos ingredientes: ${ingredientes}. Sugiere 1 desayuno y 1 comida saludables para niños de 1 a 5 años. Responde breve en español.`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
-
-    const ingredientes = productosCocina.map(p => p.nombre).join(", ");
-    const prompt = `Sugiere 2 desayunos y 2 comidas saludables para una guardería usando: ${ingredientes}. Responde breve en español.`;
-
-    const result = await model.generateContent(prompt);
-    setMenuSugerido(result.response.text());
-    
-  } catch (error) {
-    console.error("Error detallado:", error);
-    alert("La API Key sigue sin ser reconocida. Revisa que no falte ningún carácter al copiarla.");
-  }
-  setCargandoIA(false);
+  // Usamos ChatGPT que es más flexible con las URLs
+  const url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+  
+  window.open(url, "_blank");
 };
 
   // --- LÓGICA DE FIREBASE ---
