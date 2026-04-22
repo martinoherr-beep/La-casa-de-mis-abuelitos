@@ -1,18 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-// Importamos la lógica necesaria
+import React, { useState, useEffect } from 'react';
+// Importamos la lógica de fechas
 import { calcularEstadoPago, obtenerFechaVencimiento } from './logicaPagos';
+// IMPORTACIONES DE FIREBASE
+import { db } from './firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 
 function App() {
-  const [pagos, setPagos] = useState(() => {
-    const datos = localStorage.getItem('pagos_abuelitos');
-    return datos ? JSON.parse(datos) : [];
-  });
-
-  const [listaPapas, setListaPapas] = useState(() => {
-    const datos = localStorage.getItem('lista_papas_abuelitos');
-    return datos ? JSON.parse(datos) : [];
-  });
-
+  const [pagos, setPagos] = useState([]);
+  const [listaPapas, setListaPapas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('Todos');
   const [nuevoPapa, setNuevoPapa] = useState({ nombre: '', nivel: 'Maternal' });
@@ -21,78 +16,55 @@ function App() {
     fecha: new Date().toISOString().split('T')[0]
   });
 
-  const fileInputRef = useRef(null);
-
+  // --- ESCUCHAR DATOS EN TIEMPO REAL DESDE FIREBASE ---
   useEffect(() => {
-    localStorage.setItem('pagos_abuelitos', JSON.stringify(pagos));
-  }, [pagos]);
+    // Escuchar Alumnos (Directorio)
+    const qAlumnos = query(collection(db, "alumnos"), orderBy("nombre", "asc"));
+    const unsubAlumnos = onSnapshot(qAlumnos, (snapshot) => {
+      setListaPapas(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+    });
 
-  useEffect(() => {
-    localStorage.setItem('lista_papas_abuelitos', JSON.stringify(listaPapas));
-  }, [listaPapas]);
+    // Escuchar Pagos (Historial)
+    const qPagos = query(collection(db, "pagos"), orderBy("fecha", "desc"));
+    const unsubPagos = onSnapshot(qPagos, (snapshot) => {
+      setPagos(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+    });
 
-  const exportarDatos = () => {
-    const dataStr = JSON.stringify({ pagos, listaPapas }, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', `Respaldo_Guarderia.json`);
-    linkElement.click();
-  };
+    return () => { unsubAlumnos(); unsubPagos(); };
+  }, []);
 
-  const importarDatos = (event) => {
-    const fileReader = new FileReader();
-    const archivo = event.target.files[0];
-    if (!archivo) return;
-    fileReader.readAsText(archivo, "UTF-8");
-    fileReader.onload = e => {
-      try {
-        const json = JSON.parse(e.target.result);
-        if (json.pagos && json.listaPapas) {
-          setPagos(json.pagos); setListaPapas(json.listaPapas);
-          alert("¡Datos restaurados!");
-        }
-      } catch (err) { alert("Error al leer archivo"); }
-    };
-    event.target.value = null;
-  };
-
-  const registrarPapa = (e) => {
+  // --- FUNCIONES PARA ESCRIBIR EN LA BASE DE DATOS ---
+  const registrarPapa = async (e) => {
     e.preventDefault();
     const nombre = nuevoPapa.nombre.trim();
-    if (!nombre || listaPapas.find(p => p.nombre === nombre)) return;
-    setListaPapas([...listaPapas, { ...nuevoPapa, nombre }]);
-    setNuevoPapa({ nombre: '', nivel: 'Maternal' });
+    if (!nombre) return;
+    try {
+      await addDoc(collection(db, "alumnos"), { nombre, nivel: nuevoPapa.nivel });
+      setNuevoPapa({ nombre: '', nivel: 'Maternal' });
+    } catch (err) { alert("Error al guardar en la nube"); }
   };
 
-  const eliminarPapaDeLista = (nombre) => {
-    if (confirm(`¿Quitar a "${nombre}"?`)) {
-      setListaPapas(listaPapas.filter(p => p.nombre !== nombre));
-    }
-  };
-
-  // --- FUNCIÓN CORREGIDA: Ahora usa la fecha del calendario ---
-  const manejarEnvioPago = (e) => {
+  const manejarEnvioPago = async (e) => {
     e.preventDefault();
     const papa = listaPapas.find(p => p.nombre === nuevoPago.tutor);
     if (!papa) return alert("Selecciona un tutor");
-    
-    // Creamos el nuevo registro asegurando que la fecha sea la del estado nuevoPago
-    setPagos([{ 
-      ...nuevoPago, 
-      id: Date.now(), 
-      monto: parseFloat(nuevoPago.monto), 
-      nivel: papa.nivel,
-      fecha: nuevoPago.fecha // <--- Esta es la corrección clave
-    }, ...pagos]);
-
-    setNuevoPago({ ...nuevoPago, monto: '' });
+    try {
+      await addDoc(collection(db, "pagos"), {
+        ...nuevoPago,
+        monto: parseFloat(nuevoPago.monto),
+        nivel: papa.nivel
+      });
+      setNuevoPago({ ...nuevoPago, monto: '' });
+    } catch (err) { alert("Error al registrar pago"); }
   };
 
-  const eliminarRegistroPago = (id) => {
-    if (confirm("¿Borrar pago?")) setPagos(pagos.filter(p => p.id !== id));
+  const eliminarRegistroPago = async (id) => {
+    if (confirm("¿Borrar pago permanentemente de la base de datos?")) {
+      await deleteDoc(doc(db, "pagos", id));
+    }
   };
 
+  // --- LÓGICA DE FILTROS Y CÁLCULOS ---
   const pagosFiltrados = pagos.filter(p => {
     const n = p.tutor.toLowerCase().includes(busqueda.toLowerCase());
     const c = filtroCategoria === 'Todos' || p.nivel === filtroCategoria;
@@ -100,20 +72,13 @@ function App() {
   });
 
   const totalIngresos = pagosFiltrados.reduce((acc, p) => acc + p.monto, 0);
+  const totalPorTipo = (tipo) => pagosFiltrados.filter(p => p.tipo === tipo).reduce((acc, p) => acc + p.monto, 0);
 
-  const totalPorTipo = (tipo) => {
-    return pagosFiltrados
-      .filter(p => p.tipo === tipo)
-      .reduce((acc, p) => acc + p.monto, 0);
-  };
-
-  // --- FUNCIÓN FORMATEAR CORREGIDA: Evita errores de zona horaria ---
   const formatearFecha = (fechaStr) => {
     if (!fechaStr) return "-";
     const [year, month, day] = fechaStr.split('-');
     const fechaLocal = new Date(year, month - 1, day);
-    const opciones = { day: 'numeric', month: 'short' };
-    return fechaLocal.toLocaleDateString('es-MX', opciones);
+    return fechaLocal.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -157,6 +122,7 @@ function App() {
           <p>CONTROL DE PAGOS ESCOLAR</p>
         </header>
 
+        {/* Banner de Ingresos */}
         <div className="card summary-card">
           <div>
             <span style={{fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.8}}>INGRESOS TOTALES</span>
@@ -167,13 +133,8 @@ function App() {
               <div className="type-pill">Mensual: ${totalPorTipo('Mensual').toLocaleString()}</div>
             </div>
           </div>
-          <div className="no-print" style={{width: '100%', maxWidth: '400px'}}>
-            <div className="btn-group">
-              <button className="btn" onClick={exportarDatos}>💾 Guardar</button>
-              <button className="btn" onClick={() => fileInputRef.current.click()}>📂 Abrir</button>
-            </div>
-            <input type="file" ref={fileInputRef} onChange={importarDatos} style={{ display: 'none' }} accept=".json" />
-            <button className="btn btn-pdf" style={{marginTop: '10px'}} onClick={() => window.print()}>📄 PDF</button>
+          <div className="no-print" style={{width: '100%', maxWidth: '200px'}}>
+            <button className="btn btn-pdf" onClick={() => window.print()}>📄 PDF</button>
           </div>
         </div>
 
@@ -196,8 +157,8 @@ function App() {
             <form onSubmit={manejarEnvioPago}>
               <select value={nuevoPago.tutor} onChange={(e)=>setNuevoPago({...nuevoPago, tutor: e.target.value})} className="input-box" required>
                 <option value="">-- Seleccionar --</option>
-                {listaPapas.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map((p,i)=>(
-                  <option key={i} value={p.nombre}>{p.nombre}</option>
+                {listaPapas.map((p,i)=>(
+                  <option key={p.id} value={p.nombre}>{p.nombre}</option>
                 ))}
               </select>
               <input type="number" placeholder="Monto $" value={nuevoPago.monto} onChange={(e)=>setNuevoPago({...nuevoPago, monto: e.target.value})} className="input-box" required />
@@ -241,7 +202,7 @@ function App() {
             <tbody>
               {pagosFiltrados.map(p => {
                 const est = calcularEstadoPago(p.fecha, p.tipo);
-                const venc = est.includes("Vencido");
+                const venc = est.includes("⚠️");
                 const proximo = obtenerFechaVencimiento(p.fecha, p.tipo);
                 return (
                   <tr key={p.id} style={{background: venc ? '#FFF8F8' : 'transparent'}}>
