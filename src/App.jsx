@@ -10,7 +10,10 @@ function App() {
   const [listaPapas, setListaPapas] = useState([]);
   const [productosCocina, setProductosCocina] = useState([]);
   const [gastosServicios, setGastosServicios] = useState({ luz: 0, agua: 0 });
-  
+  const toggleComprado = async (id, compradoActual) => {
+  await updateDoc(doc(db, "cocina", id), { comprado: !compradoActual });
+  };
+  const [modoSuper, setModoSuper] = useState(false);
   // ESTADOS PARA GEMINI
   const [menuSugerido, setMenuSugerido] = useState("");
   const [cargandoIA, setCargandoIA] = useState(false);
@@ -261,20 +264,51 @@ const consultarMenuIA = async () => {
         {/* LISTA MANDADO (CUADERNO) */}
         <div className="notebook card">
           <h3 style={{color: '#ce1414', fontFamily:'serif', fontSize:'1.2rem', marginBottom: '10px'}}>Lista Mandado</h3>
+          <button 
+  className="btn-super no-print" 
+  onClick={() => setModoSuper(true)}
+  style={{
+    backgroundColor: '#FF9800',
+    color: 'white',
+    padding: '10px',
+    borderRadius: '8px',
+    border: 'none',
+    width: '100%',
+    marginBottom: '15px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  }}
+>
+  🛒 Abrir Modo Supermercado
+</button>
           <form onSubmit={agregarProductoCocina} className="no-print">
             <input className="notebook-add-input" placeholder="+ Nuevo producto..." value={nuevoItemCocina} onChange={(e)=>setNuevoItemCocina(e.target.value)} />
           </form>
           
           <div className="notebook-content">
-            {productosCocina.map(p => (
-              <div key={p.id} className="product-row">
-                <div className="product-left">
-                  <button className="btn-delete-item no-print" onClick={() => eliminarProductoCocina(p.id)}>✖</button>
-                  <span className="product-name">• {p.nombre}</span>
-                </div>
-                <span>$ <input type="number" className="notebook-input" value={p.precio} onChange={(e)=>actualizarPrecioCocina(p.id, e.target.value)} /></span>
-              </div>
-            ))}
+           {productosCocina.map(p => (
+    <div key={p.id} className="product-row" style={{ opacity: p.comprado ? 0.5 : 1 }}>
+      <div className="product-left">
+        <button className="btn-delete-item no-print" onClick={() => eliminarProductoCocina(p.id)}>✖</button>
+        
+        {/* CHECKBOX PARA EL SUPERMERCADO */}
+        <input 
+          type="checkbox" 
+          checked={p.comprado || false} 
+          onChange={() => toggleComprado(p.id, p.comprado)}
+          style={{ cursor: 'pointer', marginRight: '10px' }}
+        />
+
+        <span className="product-name" style={{ 
+          textDecoration: p.comprado ? 'line-through' : 'none',
+          color: p.comprado ? '#999' : '#000080'
+        }}>
+          • {p.nombre}
+        </span>
+      </div>
+      <span>$ <input type="number" className="notebook-input" value={p.precio} onChange={(e)=>actualizarPrecioCocina(p.id, e.target.value)} /></span>
+    </div>
+  ))}
           </div>
 
           <div style={{marginTop:'10px', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:'5px', background:'white'}}>
@@ -313,47 +347,121 @@ const consultarMenuIA = async () => {
           )}
         </div>
 
-        {/* TABLA HISTORIAL */}
-        <div className="card table-scroll" style={{padding:'0'}}>
-          <div style={{padding:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <h3 style={{color:'#0277BD'}}>Historial de Pagos</h3>
-            <input placeholder="Buscar alumno..." value={busqueda} onChange={(e)=>setBusqueda(e.target.value)} style={{padding:'8px', borderRadius:'8px', border:'1px solid #ddd'}} />
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th style={{textAlign:'left', paddingLeft:'20px'}}>Alumno</th>
-                <th>Nivel</th>
-                <th>Monto</th>
-                <th>Vencimiento</th>
-                <th>Estado</th>
-                <th className="no-print"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagosFiltrados.map(p => (
-                <tr key={p.id}>
-                  <td style={{textAlign:'left', paddingLeft:'20px', fontWeight:'bold'}}>{p.tutor}</td>
-                  <td>
-                    <span className={`badge badge-${p.nivel.toLowerCase()}`}>
-                      {p.nivel}
-                    </span>
-                  </td>
-                  <td style={{fontWeight:'bold', color:'#0277BD'}}>${p.monto.toLocaleString()}</td>
-                  <td style={{fontSize:'0.8rem', color:'#666'}}>{obtenerFechaVencimiento(p.fecha, p.tipo)}</td>
-                  <td style={{color: calcularEstadoPago(p.fecha, p.tipo).includes('⚠️') ? '#ce1414' : '#2E7D32', fontWeight:'bold'}}>
-                    {calcularEstadoPago(p.fecha, p.tipo)}
-                    <div style={{fontSize:'0.6rem', fontWeight:'normal', opacity:0.6}}>Último: {formatearFecha(p.fecha)}</div>
-                  </td>
-                  <td className="no-print">
-                    <button onClick={()=>eliminarRegistroPago(p.id)} style={{border:'none', background:'none', cursor:'pointer'}}>🗑️</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* TABLA HISTORIAL ACTUALIZADA */}
+<div className="card table-scroll" style={{padding:'0'}}>
+  <div style={{padding:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+    <h3 style={{color:'#0277BD'}}>Historial de Pagos</h3>
+    <input 
+      placeholder="Buscar alumno..." 
+      value={busqueda} 
+      onChange={(e)=>setBusqueda(e.target.value)} 
+      style={{padding:'8px', borderRadius:'8px', border:'1px solid #ddd'}} 
+    />
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style={{textAlign:'left', paddingLeft:'20px'}}>Alumno</th>
+        <th>Nivel</th>
+        <th>Tipo</th> {/* <-- Nueva Columna */}
+        <th>Monto</th>
+        <th>Vencimiento</th>
+        <th>Estado</th>
+        <th className="no-print"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {pagosFiltrados.map(p => (
+        <tr key={p.id}>
+          <td style={{textAlign:'left', paddingLeft:'20px', fontWeight:'bold'}}>{p.tutor}</td>
+          <td>
+            <span className={`badge badge-${p.nivel.toLowerCase()}`}>
+              {p.nivel}
+            </span>
+          </td>
+          {/* Muestra el tipo de pago con el estilo de píldora que ya definiste */}
+          <td>
+            <span className={`type-pill pill-${p.tipo.toLowerCase()}`} style={{fontSize:'0.65rem', margin:'0'}}>
+              {p.tipo}
+            </span>
+          </td>
+          <td style={{fontWeight:'bold', color:'#0277BD'}}>${p.monto.toLocaleString()}</td>
+          <td style={{fontSize:'0.8rem', color:'#666'}}>{obtenerFechaVencimiento(p.fecha, p.tipo)}</td>
+          <td style={{color: calcularEstadoPago(p.fecha, p.tipo).includes('⚠️') ? '#ce1414' : '#2E7D32', fontWeight:'bold'}}>
+            {calcularEstadoPago(p.fecha, p.tipo)}
+            <div style={{fontSize:'0.6rem', fontWeight:'normal', opacity:0.6}}>Último: {formatearFecha(p.fecha)}</div>
+          </td>
+          <td className="no-print">
+            <button onClick={()=>eliminarRegistroPago(p.id)} style={{border:'none', background:'none', cursor:'pointer'}}>🗑️</button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
       </div>
+    {modoSuper && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: '#fff',
+    zIndex: 9999,
+    padding: '20px',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column'
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <h2 style={{ margin: 0, color: '#000080' }}>🛒 Lista de Súper</h2>
+      <button 
+        onClick={() => setModoSuper(false)}
+        style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: '#f44336', color: 'white', border: 'none', fontWeight: 'bold' }}
+      >
+        Salir
+      </button>
+    </div>
+
+    <div style={{ flex: 1 }}>
+      {productosCocina.map(p => (
+        <div key={p.id} 
+          onClick={() => toggleComprado(p.id, p.comprado)} // Toda la fila es clickeable para comodidad
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #eee',
+            backgroundColor: p.comprado ? '#f9f9f9' : '#fff',
+            borderRadius: '12px',
+            marginBottom: '10px',
+            transition: '0.3s'
+          }}
+        >
+          <input 
+            type="checkbox" 
+            checked={p.comprado || false} 
+            readOnly 
+            style={{ transform: 'scale(1.8)', marginRight: '20px' }} 
+          />
+          <span style={{ 
+            fontSize: '1.2rem', 
+            textDecoration: p.comprado ? 'line-through' : 'none',
+            color: p.comprado ? '#999' : '#333',
+            fontWeight: p.comprado ? 'normal' : '500'
+          }}>
+            {p.nombre}
+          </span>
+        </div>
+      ))}
+    </div>
+    
+    <p style={{ textAlign: 'center', color: '#999', fontSize: '0.8rem' }}>
+      Moapp - La Casa de mis Abuelitos
+    </p>
+  </div>
+)}
     </div>
   );
 }
