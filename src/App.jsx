@@ -44,6 +44,12 @@ function App() {
     setNuevoPago({ ...nuevoPago, monto: '' });
   };
 
+  const eliminarProductoCocina = async (id) => {
+    if (confirm("¿Eliminar este producto permanentemente?")) {
+      await deleteDoc(doc(db, "cocina", id));
+    }
+  };
+
   const agregarProductoCocina = async (e) => {
     e.preventDefault();
     if (!nuevoItemCocina.trim()) return;
@@ -65,7 +71,7 @@ function App() {
   };
 
   const eliminarRegistroPago = async (id) => {
-    if (confirm("¿Borrar pago?")) await deleteDoc(doc(db, "pagos", id));
+    if (confirm("¿Borrar registro de pago?")) await deleteDoc(doc(db, "pagos", id));
   };
 
   const pagosFiltrados = pagos.filter(p => p.tutor.toLowerCase().includes(busqueda.toLowerCase()) && (filtroCategoria === 'Todos' || p.nivel === filtroCategoria));
@@ -96,29 +102,53 @@ function App() {
         
         .summary-card { background: #B3E5FC; color: #0277BD; padding: 25px; position: relative; }
         .balance-card { background: #E8F5E9; color: #2E7D32; border: 2px solid #A5D6A7; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-
         .type-pill { background: rgba(255, 255, 255, 0.5); padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; margin-right: 5px; color: #01579B; }
         
         .grid-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
         @media (min-width: 768px) { .grid-layout { grid-template-columns: repeat(3, 1fr); } }
 
-        .input-box { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; background: #fdfdfd; }
+        .input-box { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; background: #fdfdfd; color: #333; }
         .btn-submit { width: 100%; padding: 14px; background: #0277BD; color: white; border: none; border-radius: 10px; font-weight: bold; margin-top: 12px; cursor: pointer; }
 
-        /* Estilo Cuaderno de Raya */
+        /* --- CUADERNO DE RAYA --- */
         .notebook {
           background: white; border-radius: 8px; box-shadow: 3px 3px 10px rgba(0,0,0,0.1);
           padding: 30px 15px 15px 45px; position: relative;
           background-image: linear-gradient(#e5e5e5 1px, transparent 1px); background-size: 100% 28px;
-          line-height: 28px; min-height: 280px; font-family: 'Courier New', Courier, monospace;
+          line-height: 28px; height: 420px; display: flex; flex-direction: column;
+          font-family: 'Courier New', Courier, monospace;
         }
         .notebook::before { content: ''; position: absolute; top: 0; left: 35px; width: 2px; height: 100%; background: #ffadad; }
-        .notebook-input { border: none; border-bottom: 1px dashed #999; width: 70px; text-align: right; background: transparent; font-family: inherit; font-weight: bold; color: #ce1414; outline: none; }
+        
+        .notebook-content { flex: 1; overflow-y: auto; padding-right: 5px; color: #000000; }
+        .notebook-content::-webkit-scrollbar { width: 4px; }
+        .notebook-content::-webkit-scrollbar-thumb { background: #ffadad; border-radius: 10px; }
 
+        .product-row { display: flex; justify-content: space-between; align-items: center; color: #000000; }
+        .product-name { color: #000080; font-weight: bold; } /* Azul pluma */
+
+        .btn-delete-item { background: none; border: none; color: #ffadad; cursor: pointer; font-size: 0.8rem; margin-right: 10px; opacity: 0.7; }
+        .btn-delete-item:hover { opacity: 1; color: #ce1414; }
+
+        .notebook-add-input {
+          border: none; border-bottom: 2px solid #ce1414; background: rgba(255, 255, 255, 0.8);
+          width: 100%; padding: 10px; font-family: inherit; font-size: 1rem; font-weight: bold;
+          outline: none; margin-bottom: 15px; color: #000000 !important;
+        }
+        .notebook-add-input::placeholder { color: #999; }
+        .notebook-add-input:focus { border-bottom: 2px solid #0277BD; background: #fff9f9; }
+
+        .notebook-input { 
+          border: none; border-bottom: 1px dashed #999; width: 70px; text-align: right; 
+          background: transparent; font-family: inherit; font-weight: bold; 
+          color: #ce1414 !important; outline: none; font-size: 1rem;
+        }
+
+        /* --- TABLA --- */
         .table-scroll { overflow-x: auto; background: white; border-radius: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; }
         th { background: #F8FAFC; padding: 15px; font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
-        td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; font-size: 0.9rem; }
+        td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; font-size: 0.9rem; color: #333; }
         .badge { padding: 4px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; }
         .badge-maternal { background: #F3E5F5; color: #7B1FA2; }
         .badge-lactantes { background: #E1F5FE; color: #0288D1; }
@@ -133,7 +163,6 @@ function App() {
           <p style={{letterSpacing:'2px', fontSize:'0.8rem', color:'#64748B'}}>SISTEMA DE GESTIÓN ADMINISTRATIVA</p>
         </header>
 
-        {/* Dashboard Superior */}
         <div className="summary-grid">
           <div className="card summary-card">
             <span style={{fontSize:'0.7rem', fontWeight:'900'}}>INGRESOS TOTALES</span>
@@ -153,7 +182,6 @@ function App() {
         </div>
 
         <div className="no-print grid-layout">
-          {/* Columna 1: Alumnos */}
           <div className="card">
             <h3 style={{color: '#0277BD', fontSize:'1.1rem'}}>👤 Alumno</h3>
             <form onSubmit={registrarPapa}>
@@ -167,7 +195,6 @@ function App() {
             </form>
           </div>
 
-          {/* Columna 2: Pagos */}
           <div className="card">
             <h3 style={{color: '#0277BD', fontSize:'1.1rem'}}>💰 Pago</h3>
             <form onSubmit={manejarEnvioPago}>
@@ -188,21 +215,24 @@ function App() {
             </form>
           </div>
 
-          {/* Columna 3: Cuaderno de Cocina */}
           <div className="notebook card">
-            <h3 style={{color: '#ce1414', fontFamily:'serif', fontSize:'1.2rem'}}>Lista Cocina</h3>
+            <h3 style={{color: '#ce1414', fontFamily:'serif', fontSize:'1.2rem', marginBottom: '10px'}}>Lista Mandado</h3>
             <form onSubmit={agregarProductoCocina} className="no-print">
               <input 
-                placeholder="+ Nuevo..." 
+                className="notebook-add-input"
+                placeholder="+ Nuevo producto..." 
                 value={nuevoItemCocina} 
                 onChange={(e)=>setNuevoItemCocina(e.target.value)}
-                style={{border:'none', borderBottom:'1px solid #eee', outline:'none', width:'100%', fontSize:'0.75rem', marginBottom:'10px'}}
               />
             </form>
-            <div style={{maxHeight:'150px', overflowY:'auto'}}>
+
+            <div className="notebook-content">
               {productosCocina.map(p => (
-                <div key={p.id} style={{display:'flex', justifyContent:'space-between', fontSize:'0.8rem'}}>
-                  <span>• {p.nombre}</span>
+                <div key={p.id} className="product-row">
+                  <div>
+                    <button className="btn-delete-item no-print" onClick={() => eliminarProductoCocina(p.id)}>✖</button>
+                    <span className="product-name">• {p.nombre}</span>
+                  </div>
                   <span>$ <input 
                     type="number" 
                     className="notebook-input" 
@@ -212,14 +242,14 @@ function App() {
                 </div>
               ))}
             </div>
-            <div style={{marginTop:'10px', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:'5px'}}>
-              <strong style={{fontSize:'0.9rem'}}>Total: ${totalGastosCocina.toLocaleString()}</strong>
-              <button onClick={resetearCocina} style={{display:'block', width:'100%', marginTop:'5px', fontSize:'0.6rem', color:'#999', cursor:'pointer', background:'none', border:'none'}}>🔄 Reset Lunes</button>
+
+            <div style={{marginTop:'10px', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:'5px', background: 'white'}}>
+              <strong style={{fontSize:'1rem', color: '#000'}}>Total: ${totalGastosCocina.toLocaleString()}</strong>
+              <button onClick={resetearCocina} style={{display:'block', width:'100%', marginTop:'5px', fontSize:'0.6rem', color:'#999', cursor:'pointer', background:'none', border:'none'}}>🔄 Reset Precios Lunes</button>
             </div>
           </div>
         </div>
 
-        {/* Historial y Buscador */}
         <div className="card table-scroll" style={{padding:'0'}}>
           <div style={{padding:'20px', display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', alignItems:'center'}}>
             <h3 style={{color:'#0277BD'}}>Historial Detallado</h3>
@@ -248,7 +278,7 @@ function App() {
             <tbody>
               {pagosFiltrados.map(p => (
                 <tr key={p.id}>
-                  <td style={{textAlign:'left', paddingLeft:'20px', fontWeight:'bold'}}>{p.tutor}</td>
+                  <td style={{textAlign:'left', paddingLeft:'20px', fontWeight:'bold', color: '#333'}}>{p.tutor}</td>
                   <td><span className={`badge badge-${p.nivel.toLowerCase()}`}>{p.nivel}</span></td>
                   <td>{p.tipo}</td>
                   <td style={{fontWeight:'bold', color:'#0277BD'}}>${p.monto.toLocaleString()}</td>
