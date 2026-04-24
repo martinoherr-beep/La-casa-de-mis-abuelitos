@@ -12,6 +12,7 @@ function App() {
   const [filtroNivelTab, setFiltroNivelTab] = useState(null); 
   const [busqueda, setBusqueda] = useState('');
   const [verDetalleProyeccion, setVerDetalleProyeccion] = useState(false);
+  const [modoCelular, setModoCelular] = useState(false); 
   
   const [nuevoPapa, setNuevoPapa] = useState({ nombre: '', nivel: 'Maternal' });
   const [nuevoItemCocina, setNuevoItemCocina] = useState('');
@@ -145,13 +146,8 @@ function App() {
   });
 
   const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + p.monto, 0);
-
-  // AJUSTE: Sumamos todos los precios de la libreta, aunque no tengan el check marcado
   const totalMandadoPresupuestado = productosCocina.reduce((acc, p) => acc + (Number(p.precio) || 0), 0);
-
   const totalServicios = (Number(gastosServicios.luz) || 0) + (Number(gastosServicios.agua) || 0) + (Number(gastosServicios.nomina) || 0);
-  
-  // La Caja Real ahora descuenta todo lo que se anotó en la libreta
   const balanceReal = totalIngresosSemana - totalMandadoPresupuestado - totalServicios;
   
   const totalPorTipo = (tipo) => pagosEstaSemana.filter(p => p.tipo === tipo).reduce((acc, p) => acc + p.monto, 0);
@@ -223,7 +219,6 @@ function App() {
         @media (min-width: 768px) { .grid-special-row { grid-template-columns: 1fr 1fr; } }
         .input-box { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; background: #fdfdfd; color: #000; }
         .btn-submit { width: 100%; padding: 14px; background: #0277BD; color: white; border: none; border-radius: 10px; font-weight: bold; margin-top: 12px; cursor: pointer; }
-        
         .notebook { background: white; border-radius: 8px; box-shadow: 3px 3px 10px rgba(0,0,0,0.1); padding: 30px 15px 15px 45px; position: relative; background-image: linear-gradient(#e5e5e5 1px, transparent 1px); background-size: 100% 28px; height: 420px; display: flex; flex-direction: column; color: #000; font-family: 'Courier New', Courier, monospace; }
         .notebook::before { content: ''; position: absolute; top: 0; left: 35px; width: 2px; height: 100%; background: #ffadad; }
         .notebook-content { flex: 1; overflow-y: auto; padding-right: 5px; margin-top: 5px; }
@@ -233,7 +228,6 @@ function App() {
         .notebook-input { border: none; border-bottom: 1px dashed #999; width: 60px; text-align: right; background: transparent; font-family: inherit; font-weight: bold; color: #ce1414 !important; outline: none; }
         .btn-delete-item { background: #ff7675; border: none; color: white; cursor: pointer; font-size: 0.6rem; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px; }
         .notebook-add-input { border: none; border-bottom: 2px solid #ce1414; background: rgba(255, 255, 255, 0.8); width: 100%; padding: 10px; font-family: inherit; font-size: 1rem; font-weight: bold; outline: none; margin-bottom: 15px; color: #000 !important; }
-        
         .alumnos-scroll-container { margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 180px; overflow-y: auto; }
         .alumno-item-list { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f9f9f9; }
         .badge { padding: 4px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; display: inline-block; }
@@ -241,12 +235,48 @@ function App() {
         .badge-maternal { background: #F3E5F5; color: #7B1FA2; }
         .badge-preescolar { background: #FFF3E0; color: #EF6C00; }
         
+        /* OVERLAY MODO SÚPER OPTIMIZADO */
+        .super-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff; z-index: 10000; display: flex; flex-direction: column; padding: 15px; font-family: 'Segoe UI', sans-serif; }
+        .super-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #ce1414; padding-bottom: 10px; margin-bottom: 15px; }
+        .super-title { color: #ce1414; font-size: 1.5rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+        .super-close-btn { background: #333; color: white; border: none; padding: 8px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .super-list { flex: 1; overflow-y: auto; }
+        .super-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 10px; border-bottom: 1px solid #eee; font-size: 1.2rem; cursor: pointer; }
+        .super-checkbox { width: 30px; height: 30px; border: 2px solid #ce1414; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        
         .table-scroll { overflow-x: auto; background: white; border-radius: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; }
         th { background: #F8FAFC; padding: 15px; font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
         td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; color: #333; }
         @media print { .no-print { display: none !important; } }
       `}</style>
+
+      {/* OVERLAY OPTIMIZADO MODO SÚPER */}
+      {modoCelular && (
+        <div className="super-overlay no-print">
+          <div className="super-header">
+            <div className="super-title">🛒 LISTA DEL MANDADO</div>
+            <button className="super-close-btn" onClick={() => setModoCelular(false)}>CERRAR X</button>
+          </div>
+          <div className="super-list">
+            {productosCocina.map(p => (
+              <div key={p.id} className="super-row" onClick={() => toggleComprado(p.id, p.comprado)}>
+                <div className="super-checkbox" style={{ background: p.comprado ? '#4CAF50' : 'white', borderColor: p.comprado ? '#4CAF50' : '#ce1414', color: 'white' }}>
+                  {p.comprado ? '✓' : ''}
+                </div>
+                <div style={{ flex: 1, marginLeft: '15px', textDecoration: p.comprado ? 'line-through' : 'none', color: p.comprado ? '#999' : '#333', fontWeight: '600' }}>
+                  {p.nombre}
+                </div>
+                <div style={{ color: '#ce1414', fontWeight: '900' }}>${p.precio}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '20px', textAlign: 'center', background: '#f8f8f8', borderRadius: '15px', marginTop: '10px' }}>
+             <div style={{ fontSize: '0.8rem', color: '#666' }}>PRESUPUESTO ESTIMADO</div>
+             <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#333' }}>${totalMandadoPresupuestado.toLocaleString()}</div>
+          </div>
+        </div>
+      )}
 
       <div className="main-wrapper">
         <header className="header">
@@ -273,7 +303,7 @@ function App() {
             <span style={{fontSize:'0.7rem', fontWeight:'900'}}>CAJA REAL (NETO SEMANAL)</span>
             <h2 style={{fontSize: '2.5rem', margin:'5px 0'}}>${balanceReal.toLocaleString()}</h2>
             <div style={{fontSize:'0.65rem', color:'#555'}}>
-              Libreta (Total): -${totalMandadoPresupuestado.toLocaleString()} | Fijos: -${totalServicios.toLocaleString()}
+              Mandado (Total libreta): -${totalMandadoPresupuestado.toLocaleString()} | Fijos: -${totalServicios.toLocaleString()}
             </div>
           </div>
         </div>
@@ -331,55 +361,13 @@ function App() {
           </div>
         </div>
 
-        <div className="no-print grid-special-row">
-          <div className="card" style={{ borderTop: '5px solid #43A047', background: '#f1f8e9', display:'flex', flexDirection:'column', justifyContent:'center' }}>
-            <h3 style={{ color: '#2E7D32', fontSize: '1.1rem', marginBottom: '10px' }}>📈 Punto de Equilibrio</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-              <div style={{ flex: 1, minWidth: '150px' }}>
-                <div style={{ background: '#e0e0e0', borderRadius: '10px', height: '22px', width: '100%', overflow:'hidden' }}>
-                  <div style={{ background: porcentajeMeta >= 100 ? '#4CAF50' : '#FF9800', height: '100%', width: `${porcentajeMeta}%`, display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'0.7rem', fontWeight:'bold' }}>{Math.round(porcentajeMeta)}%</div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                {porcentajeMeta >= 100 ? <b style={{ color: '#2E7D32' }}>✅ Cubierto</b> : <span>Faltan: <b>${faltaParaMeta.toLocaleString()}</b></span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={{ borderTop: '5px solid #0288D1', background: '#e1f5fe', position: 'relative' }}>
-            <h3 style={{ color: '#01579B', fontSize: '1.1rem', marginBottom: '10px' }}>🔮 Cobranza Próxima</h3>
-            <button onClick={() => setVerDetalleProyeccion(!verDetalleProyeccion)} style={{ position: 'absolute', top: '15px', right: '15px', background: verDetalleProyeccion ? '#0288D1' : 'white', border: '1px solid #0288D1', borderRadius: '8px', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {verDetalleProyeccion ? <span style={{color:'white'}}>✕</span> : <b>📋</b>}
-            </button>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
-              <div>
-                <input type="date" value={fechaProyeccion} onChange={(e) => setFechaProyeccion(e.target.value)} style={{ border: '1px solid #0288D1', borderRadius: '5px', padding: '2px 5px', fontSize: '0.8rem' }} />
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.8rem', color: '#01579B', fontWeight: 'bold' }}>Esperado:</span>
-                <div style={{ fontSize: '1.6rem', fontWeight: '900', color: '#0288D1' }}>${proyeccionLunes.toLocaleString()}</div>
-              </div>
-            </div>
-            {verDetalleProyeccion && (
-                <div style={{ marginTop: '15px', background: 'rgba(255,255,255,0.6)', borderRadius: '10px', padding: '10px', fontSize: '0.75rem', maxHeight: '150px', overflowY: 'auto' }}>
-                    {alumnosProyeccion.length > 0 ? alumnosProyeccion.map((al, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', padding: '5px', background: 'white', borderRadius: '5px' }}>
-                            <span><b>{al.nombre}</b> <small>({al.tipo})</small></span>
-                            <b style={{ color: '#2E7D32' }}>${al.monto.toLocaleString()}</b>
-                        </div>
-                    )) : <div style={{textAlign:'center', color:'#666'}}>No hay cobros pendientes esta semana.</div>}
-                </div>
-            )}
-          </div>
-        </div>
-
         {/* SECTION NOTEBOOK MANDADO */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <h3 style={{ color: '#ce1414', margin: 0 }}>Lista Mandado</h3>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="no-print" onClick={resetearCocina} style={{ background: '#eee', color: '#666', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>🔄 RESET SEMANAL</button>
-              <button className="no-print" onClick={() => { const el = document.querySelector('.notebook'); if (el.requestFullscreen) el.requestFullscreen(); }} style={{ background: '#444', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>📱 MODO CELULAR</button>
+              <button className="no-print" onClick={resetearCocina} style={{ background: '#eee', color: '#666', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>🔄 RESET</button>
+              <button className="no-print" onClick={() => setModoCelular(true)} style={{ background: '#444', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>🛒 MODO SÚPER</button>
             </div>
           </div>
           <form onSubmit={agregarProductoCocina}>
@@ -399,21 +387,25 @@ function App() {
               ))}
             </div>
             <div style={{marginTop:'auto', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:'10px'}}>
-              <strong>Total Mandado Presupuestado: ${totalMandadoPresupuestado.toLocaleString()}</strong>
+              <strong>Mandado Presupuestado: ${totalMandadoPresupuestado.toLocaleString()}</strong>
+              {/* RESTAURADO: BOTÓN DE IA */}
               <button className="no-print" onClick={consultarMenuIA} style={{display: 'block', width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(45deg, #7B1FA2, #0288D1)', color: 'white', fontWeight: 'bold', border:'none', fontSize: '0.85rem', marginTop:'10px'}}>✨ SUGERIR MENÚS IA</button>
             </div>
           </div>
         </div>
 
-        {/* HISTORIAL TABLA */}
+        {/* HISTORIAL TABLA RESTAURADA AL 100% */}
         <div className="card table-scroll" style={{padding:'0'}}>
           <div style={{padding:'20px'}}>
             <div style={{display:'flex', gap:'5px', flexWrap:'wrap'}}>
                <span onClick={()=>setFiltroNivelTab('Lactantes')} className={`type-pill ${filtroNivelTab==='Lactantes'?'pill-quincenal':''}`} style={{cursor:'pointer', backgroundColor: filtroNivelTab==='Lactantes'?'#0288D1':'#607D8B'}}>LACTANTES</span>
                <span onClick={()=>setFiltroNivelTab('Maternal')} className={`type-pill ${filtroNivelTab==='Maternal'?'pill-semanal':''}`} style={{cursor:'pointer', backgroundColor: filtroNivelTab==='Maternal'?'#7B1FA2':'#607D8B'}}>MATERNAL</span>
                <span onClick={()=>setFiltroNivelTab('Preescolar')} className={`type-pill ${filtroNivelTab==='Preescolar'?'pill-mensual':''}`} style={{cursor:'pointer', backgroundColor: filtroNivelTab==='Preescolar'?'#EF6C00':'#607D8B'}}>PREESCOLAR</span>
-               <span onClick={()=>setFiltroNivelTab('DEUDORES')} className="type-pill" style={{backgroundColor: '#ce1414', cursor:'pointer', border: filtroNivelTab==='DEUDORES'?'2px solid black':'none'}}>⚠️ RECUPERACIÓN (DEUDORES)</span>
-               <span onClick={()=>setFiltroNivelTab('HISTORIAL')} className="type-pill" style={{backgroundColor: '#607D8B', cursor:'pointer', opacity: filtroNivelTab==='HISTORIAL'?1:0.6}}>📂 HISTORIAL COMPLETO</span>
+               
+               {/* RESTAURADO: FILTRO DE DEUDORES */}
+               <span onClick={()=>setFiltroNivelTab('DEUDORES')} className="type-pill" style={{backgroundColor: '#ce1414', cursor:'pointer', border: filtroNivelTab==='DEUDORES'?'2px solid black':'none'}}>⚠️ RECAUDACIÓN DE DEUDORES</span>
+               
+               <span onClick={()=>setFiltroNivelTab('HISTORIAL')} className="type-pill" style={{backgroundColor: '#607D8B', cursor:'pointer', opacity: filtroNivelTab==='HISTORIAL'?1:0.6}}>📂 HISTORIAL</span>
                <span onClick={()=>setFiltroNivelTab(null)} className="type-pill" style={{backgroundColor: '#4CAF50', cursor:'pointer', opacity: !filtroNivelTab?1:0.6}}>📅 ESTA SEMANA</span>
             </div>
           </div>
@@ -422,7 +414,7 @@ function App() {
             <tbody>
               {pagosTabla.length > 0 ? pagosTabla.map(p => (
                 <tr key={p.id}>
-                  <td style={{textAlign:'left', paddingLeft:'20px'}}><b>{p.tutor}</b></td>
+                  <td style={{textAlign:'left', paddingLeft:'20px'}}><b>{p.tutor}</b><br/><small>{p.nivel}</small></td>
                   <td>
                     <span className={`type-pill pill-${p.tipo.toLowerCase()}`} style={{fontSize:'0.65rem', margin:0}}>{p.tipo}</span>
                     {obtenerSemanaDelCiclo(p) && <div style={{fontSize:'0.65rem', fontWeight:'bold', marginTop:'4px'}}>{obtenerSemanaDelCiclo(p)}</div>}
