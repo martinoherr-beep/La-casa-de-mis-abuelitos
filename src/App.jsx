@@ -111,10 +111,12 @@ function App() {
   };
 
   const formatearFecha = (fechaStr) => {
-    if (!fechaStr) return "-";
-    const [year, month, day] = fechaStr.split('-');
-    return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-  };
+  if (!fechaStr) return "-";
+  // Si la fecha ya viene como ISO (del sistema), tomamos solo la parte de la fecha
+  const soloFecha = fechaStr.includes('T') ? fechaStr.split('T')[0] : fechaStr;
+  const [year, month, day] = soloFecha.split('-');
+  return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+};
 
   const obtenerSemanaDelCiclo = (pagoActual, fechaReferencia = null) => {
     if (pagoActual.tipo === 'Semanal') return null;
@@ -135,7 +137,8 @@ function App() {
     return f >= lunesRef && f <= domingoRef;
   });
 
-  const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + p.monto, 0);
+  // Usamos Number() para asegurar que incluso si llega como texto desde WhatsApp, se sume correctamente
+const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
   const totalMandadoPresupuestado = productosCocina.reduce((acc, p) => acc + (Number(p.precio) || 0), 0);
   const totalServicios = (Number(gastosServicios.luz) || 0) + (Number(gastosServicios.agua) || 0) + (Number(gastosServicios.nomina) || 0);
   const balanceReal = totalIngresosSemana - totalMandadoPresupuestado - totalServicios;
@@ -221,6 +224,9 @@ function App() {
         .super-close-btn { background: #333; color: white; border: none; padding: 8px 15px; border-radius: 10px; font-weight: bold; }
         .table-scroll { overflow-x: auto; background: white; border-radius: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; }
+        .input-group { position: relative; margin-top: 10px; }
+        .input-icon { position: absolute; left: 10px; top: 12px; font-size: 1.2rem; }
+        .input-with-icon { padding-left: 40px !important; }
         th { background: #F8FAFC; padding: 15px; font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
         td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; color: #333; }
         @media print { .no-print { display: none !important; } }
@@ -255,29 +261,56 @@ function App() {
             <span style={{fontSize:'0.7rem', fontWeight:'900'}}>RECAUDACIÓN SEMANAL</span>
             <h2 style={{fontSize: '2.5rem', margin:'5px 0'}}>${totalIngresosSemana.toLocaleString()}</h2>
             <div style={{display:'flex', gap:'5px', flexWrap:'wrap'}}>
-               <span className="type-pill pill-semanal">Sem: ${totalPorTipo('Semanal').toLocaleString()}</span>
-               <span className="type-pill pill-quincenal">Quin: ${totalPorTipo('Quincenal').toLocaleString()}</span>
-               <span className="type-pill pill-mensual">Men: ${totalPorTipo('Mensual').toLocaleString()}</span>
+               <span className="type-pill pill-semanal">Semanal: ${totalPorTipo('Semanal').toLocaleString()}</span>
+               <span className="type-pill pill-quincenal">Quincenal: ${totalPorTipo('Quincenal').toLocaleString()}</span>
+               <span className="type-pill pill-mensual">Mensualidad: ${totalPorTipo('Mensual').toLocaleString()}</span>
             </div>
-            <p style={{fontSize:'0.6rem', marginTop:'5px', color:'#666'}}>Del {formatearFecha(lunesRef.toISOString().split('T')[0])} al {formatearFecha(domingoRef.toISOString().split('T')[0])}</p>
+            <p style={{fontSize:'0.6rem', marginTop:'5px', color:'#666'}}>Semana del {formatearFecha(lunesRef.toISOString().split('T')[0])} al {formatearFecha(domingoRef.toISOString().split('T')[0])}</p>
           </div>
           <div className="card balance-card">
             <span style={{fontSize:'0.7rem', fontWeight:'900'}}>CAJA REAL (NETO)</span>
             <h2 style={{fontSize: '2.5rem', margin:'5px 0'}}>${balanceReal.toLocaleString()}</h2>
-            <div style={{fontSize:'0.65rem', color:'#555'}}>Libreta: -${totalMandadoPresupuestado.toLocaleString()} | Fijos: -${totalServicios.toLocaleString()}</div>
+            <div style={{fontSize:'0.65rem', color:'#555'}}>Mandado: -${totalMandadoPresupuestado.toLocaleString()} | Gastos Fijos: -${totalServicios.toLocaleString()}</div>
           </div>
         </div>
 
         <div className="no-print grid-layout">
-          <div className="card" style={{background:'#FFF9C4', border:'1px solid #FBC02D'}}>
-            <h3 style={{color:'#F57F17', fontSize:'1.1rem', marginBottom:'10px'}}>🔌 Gastos Fijos</h3>
-            <input type="number" className="input-box" value={gastosServicios.luz} onChange={(e) => actualizarServicio('luz', e.target.value)} placeholder="Luz" />
-            <input type="number" className="input-box" value={gastosServicios.agua} onChange={(e) => actualizarServicio('agua', e.target.value)} placeholder="Agua" />
-            <input type="number" className="input-box" value={gastosServicios.nomina} onChange={(e) => actualizarServicio('nomina', e.target.value)} placeholder="Nómina" />
-          </div>
+          <div className="card" style={{background:'#efcccc', border:'1px solid #f38181'}}>
+  <h3 style={{color:'#494949', fontSize:'1.1rem', marginBottom:'10px'}}>🔌 Gastos Fijos</h3>
+  
+  <div className="input-group">
+    <span className="input-icon">⚡</span>
+    <input type="number" className="input-box input-with-icon" 
+      value={gastosServicios.luz} 
+      onChange={(e) => actualizarServicio('luz', e.target.value)} 
+      placeholder="Luz" 
+    />
+    <small style={{color:'#f57f18', fontWeight:'bold', marginLeft:'5px'}}>LUZ</small>
+  </div>
+
+  <div className="input-group">
+    <span className="input-icon">💧</span>
+    <input type="number" className="input-box input-with-icon" 
+      value={gastosServicios.agua} 
+      onChange={(e) => actualizarServicio('agua', e.target.value)} 
+      placeholder="Agua" 
+    />
+    <small style={{color:'#0288D1', fontWeight:'bold', marginLeft:'5px'}}>AGUA</small>
+  </div>
+
+  <div className="input-group">
+    <span className="input-icon">👥</span>
+    <input type="number" className="input-box input-with-icon" 
+      value={gastosServicios.nomina} 
+      onChange={(e) => actualizarServicio('nomina', e.target.value)} 
+      placeholder="Nómina" 
+    />
+    <small style={{color:'#7B1FA2', fontWeight:'bold', marginLeft:'5px'}}>NÓMINA</small>
+  </div>
+</div>
 
           <div className="card">
-            <h3 style={{ color: '#0277BD', fontSize: '1.1rem' }}>👤 Control de Alumnos</h3>
+            <h3 style={{ color: '#0277BD', fontSize: '1.1rem' }}>👤 Control de Niños</h3>
             <form onSubmit={registrarPapa}><input placeholder="Nombre" value={nuevoPapa.nombre} onChange={(e) => setNuevoPapa({ ...nuevoPapa, nombre: e.target.value })} className="input-box" required /><select value={nuevoPapa.nivel} onChange={(e) => setNuevoPapa({ ...nuevoPapa, nivel: e.target.value })} className="input-box"><option value="Lactantes">Lactantes</option><option value="Maternal">Maternal</option><option value="Preescolar">Preescolar</option></select><button type="submit" className="btn-submit">Dar de Alta</button></form>
             <div className="alumnos-scroll-container">
               {listaPapas.map(p => (
@@ -299,14 +332,14 @@ function App() {
         </div>
 
         <div className="no-print grid-special-row">
-          <div className="card" style={{ borderTop: '5px solid #43A047', background: '#f1f8e9' }}>
+          <div className="card" style={{ borderTop: '5px solid #43A047', background: '#def4e6' }}>
             <h3 style={{ color: '#2E7D32', fontSize: '1.1rem' }}>📈 Punto de Equilibrio</h3>
             <div style={{ background: '#e0e0e0', borderRadius: '10px', height: '22px', overflow:'hidden', marginTop:10 }}><div style={{ background: porcentajeMeta >= 100 ? '#4CAF50' : '#FF9800', height: '100%', width: `${porcentajeMeta}%`, color:'white', textAlign:'center', fontSize:12 }}>{Math.round(porcentajeMeta)}%</div></div>
             <div style={{textAlign:'right', marginTop:5}}>{porcentajeMeta >= 100 ? '✅ Cubierto' : `Faltan: $${faltaParaMeta.toLocaleString()}`}</div>
           </div>
 
-          <div className="card" style={{ borderTop: '5px solid #0288D1', background: '#e1f5fe', position: 'relative' }}>
-            <h3 style={{ color: '#01579B', fontSize: '1.1rem' }}>🔮 Cobranza Estimada</h3>
+          <div className="card" style={{ borderTop: '5px solid #0288D1', background: '#d7e2f5', position: 'relative' }}>
+            <h3 style={{ color: '#303030', fontSize: '1.1rem' }}>Cobranza Estimada</h3>
             <button onClick={() => setVerDetalleProyeccion(!verDetalleProyeccion)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'white', border: '1px solid #0288D1', borderRadius: '8px', padding:5 }}>📋</button>
             <input type="date" value={fechaProyeccion} onChange={(e) => setFechaProyeccion(e.target.value)} style={{marginTop:10, padding:5, borderRadius:5, border:'1px solid #0288D1'}} />
             <div style={{ textAlign: 'right', fontSize: '1.6rem', fontWeight: '900', color: '#0288D1' }}>${proyeccionLunes.toLocaleString()}</div>
@@ -322,8 +355,8 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <h3 style={{ color: '#ce1414' }}>🛒 Lista del Mandado</h3>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="no-print" onClick={resetearCocina} style={{ background: '#eee', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🔄 RESET</button>
-              <button className="no-print" onClick={() => setModoCelular(true)} style={{ background: '#444', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🛒 MODO SÚPER</button>
+              <button className="no-print" onClick={resetearCocina} style={{ background: '#6a6a6a', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🔄 RESET</button>
+              <button className="no-print" onClick={() => setModoCelular(true)} style={{ background: '#2b2b2b', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🛒 MODO SÚPER</button>
             </div>
           </div>
           <form onSubmit={agregarProductoCocina}><input className="notebook-add-input" placeholder="+ Producto..." value={nuevoItemCocina} onChange={(e)=>setNuevoItemCocina(e.target.value)} /></form>
@@ -350,9 +383,13 @@ function App() {
             <tbody>
               {pagosTabla.length > 0 ? pagosTabla.map(p => (
                 <tr key={p.id}>
-                  <td style={{textAlign:'left', paddingLeft:'20px'}}><b>{p.tutor}</b><br/><small>{p.nivel}</small></td>
+                  <td style={{textAlign:'left', paddingLeft:'20px'}}><b>{p.tutor.replace(/pago de|pago|de/gi, '').trim()}</b><br/><small style={{opacity: 0.7}}>{p.nivel}</small></td>
                   <td><span className={`type-pill pill-${p.tipo.toLowerCase()}`} style={{fontSize:'0.65rem', margin:0}}>{p.tipo}</span>{obtenerSemanaDelCiclo(p) && <div style={{fontSize:'0.65rem', fontWeight:'bold', marginTop:'4px'}}>{obtenerSemanaDelCiclo(p)}</div>}</td>
-                  <td><b>${p.monto.toLocaleString()}</b></td>
+                  <td>
+                  <b>
+                  ${Number(p.monto) ? Number(p.monto).toLocaleString() : p.monto}
+                  </b>
+                 </td>
                   <td style={{color: calcularEstadoPago(p.fecha,p.tipo).includes('⚠️') ? '#ce1414' : '#2E7D32', fontWeight:'bold'}}>{calcularEstadoPago(p.fecha,p.tipo)}<div style={{fontSize:'0.6rem', fontWeight:'normal', opacity:0.6}}>Inicio: {formatearFecha(p.fecha)}</div></td>
                   <td className="no-print"><button onClick={()=>deleteDoc(doc(db,"pagos",p.id))} style={{border:'none', background:'none'}}>🗑️</button></td>
                 </tr>
