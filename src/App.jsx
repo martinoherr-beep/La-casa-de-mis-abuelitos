@@ -97,6 +97,10 @@ function App() {
     setNuevoItemCocina('');
   };
 
+  const eliminarProductoCocina = async (id) => {
+    await deleteDoc(doc(db, "cocina", id));
+  };
+
   const resetearCocina = async () => {
     if (confirm("¿Es lunes? Se limpiarán los precios y checks de la lista del mandado.")) {
       productosCocina.forEach(async (p) => await updateDoc(doc(db, "cocina", p.id), { precio: 0, comprado: false }));
@@ -106,17 +110,16 @@ function App() {
   const consultarMenuIA = () => {
     if (productosCocina.length === 0) return alert("Agrega productos al mandado primero.");
     const ingredientes = productosCocina.map(p => p.nombre).join(", ");
-    const prompt = `Actúa como nutriólogo de guardería. Tengo estos ingredientes: ${ingredientes}. Sugiere 1 desayuno y 1 comida saludables. Responde breve.`;
+    const prompt = `Actúa como nutriólogo de guardería. Tengo estos ingredientes: ${ingredientes}. Sugiere 5 desayunos y 5 comidas saludables. Responde breve.`;
     window.open(`https://chatgpt.com/?q=${encodeURIComponent(prompt)}`, "_blank");
   };
 
   const formatearFecha = (fechaStr) => {
-  if (!fechaStr) return "-";
-  // Si la fecha ya viene como ISO (del sistema), tomamos solo la parte de la fecha
-  const soloFecha = fechaStr.includes('T') ? fechaStr.split('T')[0] : fechaStr;
-  const [year, month, day] = soloFecha.split('-');
-  return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-};
+    if (!fechaStr) return "-";
+    const soloFecha = fechaStr.includes('T') ? fechaStr.split('T')[0] : fechaStr;
+    const [year, month, day] = soloFecha.split('-');
+    return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  };
 
   const obtenerSemanaDelCiclo = (pagoActual, fechaReferencia = null) => {
     if (pagoActual.tipo === 'Semanal') return null;
@@ -137,17 +140,20 @@ function App() {
     return f >= lunesRef && f <= domingoRef;
   });
 
-  // Usamos Number() para asegurar que incluso si llega como texto desde WhatsApp, se sume correctamente
-const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
+  const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
   const totalMandadoPresupuestado = productosCocina.reduce((acc, p) => acc + (Number(p.precio) || 0), 0);
   const totalServicios = (Number(gastosServicios.luz) || 0) + (Number(gastosServicios.agua) || 0) + (Number(gastosServicios.nomina) || 0);
   const balanceReal = totalIngresosSemana - totalMandadoPresupuestado - totalServicios;
   
-  const totalPorTipo = (tipo) => pagosEstaSemana.filter(p => p.tipo === tipo).reduce((acc, p) => acc + p.monto, 0);
-  const porcentajeMeta = totalServicios > 0 ? Math.min((totalIngresosSemana / totalServicios) * 100, 100) : 0;
-  const faltaParaMeta = Math.max(0, totalServicios - totalIngresosSemana);
+  const totalPorTipo = (tipo) => pagosEstaSemana.filter(p => p.tipo === tipo).reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
 
-  // --- LÓGICA DE COBRANZA ESTIMADA (FILTRO ESTRICTO DE FECHA DE PAGO) ---
+  // --- LOGICA BARRA EQUILIBRIO ---
+  const totalServiciosNum = Number(totalServicios) || 0;
+  const totalIngresosNum = Number(totalIngresosSemana) || 0;
+  const porcentajeMeta = totalServiciosNum > 0 ? Math.min((totalIngresosNum / totalServiciosNum) * 100, 100) : 0;
+  const faltaParaMeta = Math.max(0, totalServiciosNum - totalIngresosNum);
+
+  // --- LÓGICA DE COBRANZA ESTIMADA ---
   const alumnosProyeccion = listaPapas.map(papa => {
     const todosSusPagos = pagos.filter(p => p.tutor === papa.nombre).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const ultimoPago = todosSusPagos[0];
@@ -157,22 +163,19 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
     const domingoC = new Date(lunesC); 
     domingoC.setDate(lunesC.getDate() + 6);
 
-    // Calculamos cuándo toca el próximo pago real
     let fProx = new Date(ultimoPago.fecha + "T00:00:00");
     if (ultimoPago.tipo === 'Semanal') fProx.setDate(fProx.getDate() + 7);
     else if (ultimoPago.tipo === 'Quincenal') fProx.setDate(fProx.getDate() + 14);
     else if (ultimoPago.tipo === 'Mensual') fProx.setMonth(fProx.getMonth() + 1);
 
-    // SOLO aparece si la fecha del próximo pago cae dentro de la semana que la directora está consultando
     if (fProx >= lunesC && fProx <= domingoC) {
-        return { nombre: papa.nombre, monto: ultimoPago.monto, tipo: ultimoPago.tipo };
+        return { nombre: papa.nombre, monto: ultimoPago.monto, tipo: ultimoPago.tipo, fechaUltima: ultimoPago.fecha };
     }
     return null;
   }).filter(x => x !== null);
 
-  const proyeccionLunes = alumnosProyeccion.reduce((acc, p) => acc + p.monto, 0);
+  const proyeccionLunes = alumnosProyeccion.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
 
-  // --- LÓGICA DE TABLA ---
   const pagosTabla = filtroNivelTab === 'DEUDORES'
   ? pagos.filter(p => {
       const esUltimo = !pagos.some(o => o.tutor === p.tutor && new Date(o.fecha) > new Date(p.fecha));
@@ -186,7 +189,7 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
     <div className="layout-root">
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #F0F4F8; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+        body { background-color: #eaeff5; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
         .layout-root { display: flex; justify-content: center; width: 100vw; min-height: 100vh; }
         .main-wrapper { width: 100%; max-width: 1200px; padding: 15px; display: flex; flex-direction: column; }
         .header { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
@@ -232,7 +235,6 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
         @media print { .no-print { display: none !important; } }
       `}</style>
 
-      {/* OVERLAY MODO SÚPER */}
       {modoCelular && (
         <div className="super-overlay no-print">
           <div className="super-header"><div className="super-title">🛒 LISTA DEL MANDADO</div><button className="super-close-btn" onClick={() => setModoCelular(false)}>CERRAR X</button></div>
@@ -276,38 +278,23 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
 
         <div className="no-print grid-layout">
           <div className="card" style={{background:'#efcccc', border:'1px solid #f38181'}}>
-  <h3 style={{color:'#494949', fontSize:'1.1rem', marginBottom:'10px'}}>🔌 Gastos Fijos</h3>
-  
-  <div className="input-group">
-    <span className="input-icon">⚡</span>
-    <input type="number" className="input-box input-with-icon" 
-      value={gastosServicios.luz} 
-      onChange={(e) => actualizarServicio('luz', e.target.value)} 
-      placeholder="Luz" 
-    />
-    <small style={{color:'#f57f18', fontWeight:'bold', marginLeft:'5px'}}>LUZ</small>
-  </div>
-
-  <div className="input-group">
-    <span className="input-icon">💧</span>
-    <input type="number" className="input-box input-with-icon" 
-      value={gastosServicios.agua} 
-      onChange={(e) => actualizarServicio('agua', e.target.value)} 
-      placeholder="Agua" 
-    />
-    <small style={{color:'#0288D1', fontWeight:'bold', marginLeft:'5px'}}>AGUA</small>
-  </div>
-
-  <div className="input-group">
-    <span className="input-icon">👥</span>
-    <input type="number" className="input-box input-with-icon" 
-      value={gastosServicios.nomina} 
-      onChange={(e) => actualizarServicio('nomina', e.target.value)} 
-      placeholder="Nómina" 
-    />
-    <small style={{color:'#7B1FA2', fontWeight:'bold', marginLeft:'5px'}}>NÓMINA</small>
-  </div>
-</div>
+            <h3 style={{color:'#494949', fontSize:'1.1rem', marginBottom:'10px'}}>🔌 Gastos Fijos</h3>
+            <div className="input-group">
+              <span className="input-icon">⚡</span>
+              <input type="number" className="input-box input-with-icon" value={gastosServicios.luz} onChange={(e) => actualizarServicio('luz', e.target.value)} placeholder="Luz" />
+              <small style={{color:'#f57f18', fontWeight:'bold', marginLeft:'5px'}}>LUZ</small>
+            </div>
+            <div className="input-group">
+              <span className="input-icon">💧</span>
+              <input type="number" className="input-box input-with-icon" value={gastosServicios.agua} onChange={(e) => actualizarServicio('agua', e.target.value)} placeholder="Agua" />
+              <small style={{color:'#0288D1', fontWeight:'bold', marginLeft:'5px'}}>AGUA</small>
+            </div>
+            <div className="input-group">
+              <span className="input-icon">👥</span>
+              <input type="number" className="input-box input-with-icon" value={gastosServicios.nomina} onChange={(e) => actualizarServicio('nomina', e.target.value)} placeholder="Nómina" />
+              <small style={{color:'#7B1FA2', fontWeight:'bold', marginLeft:'5px'}}>NÓMINA</small>
+            </div>
+          </div>
 
           <div className="card">
             <h3 style={{ color: '#0277BD', fontSize: '1.1rem' }}>👤 Control de Niños</h3>
@@ -332,21 +319,35 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
         </div>
 
         <div className="no-print grid-special-row">
-          <div className="card" style={{ borderTop: '5px solid #43A047', background: '#def4e6' }}>
-            <h3 style={{ color: '#2E7D32', fontSize: '1.1rem' }}>📈 Punto de Equilibrio</h3>
-            <div style={{ background: '#e0e0e0', borderRadius: '10px', height: '22px', overflow:'hidden', marginTop:10 }}><div style={{ background: porcentajeMeta >= 100 ? '#4CAF50' : '#FF9800', height: '100%', width: `${porcentajeMeta}%`, color:'white', textAlign:'center', fontSize:12 }}>{Math.round(porcentajeMeta)}%</div></div>
-            <div style={{textAlign:'right', marginTop:5}}>{porcentajeMeta >= 100 ? '✅ Cubierto' : `Faltan: $${faltaParaMeta.toLocaleString()}`}</div>
+          <div className="card" style={{ borderTop: '5px solid #5e81d9', background: '#b4c7f7' }}>
+            <h3 style={{ color: '#383838', fontSize: '1.1rem' }}>📈 Punto de Equilibrio</h3>
+            <div style={{ background: '#ffffff', borderRadius: '10px', height: '22px', overflow:'hidden', marginTop:10 }}><div style={{ background: porcentajeMeta >= 100 ? '#4CAF50' : '#FF9800', height: '100%', width: `${porcentajeMeta}%`, color:'darkgrey', textAlign:'center', fontSize:12, fontWeight: 'bold', transition: 'width 0.5s ease' }}>{Math.round(porcentajeMeta)}%</div></div>
+            <div style={{textAlign:'right', marginTop:5,color: '#272727'}}>{porcentajeMeta >= 100 ? '✅ Cubierto' : `Faltan: $${faltaParaMeta.toLocaleString()}`}</div>
           </div>
 
-          <div className="card" style={{ borderTop: '5px solid #0288D1', background: '#d7e2f5', position: 'relative' }}>
-            <h3 style={{ color: '#303030', fontSize: '1.1rem' }}>Cobranza Estimada</h3>
-            <button onClick={() => setVerDetalleProyeccion(!verDetalleProyeccion)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'white', border: '1px solid #0288D1', borderRadius: '8px', padding:5 }}>📋</button>
-            <input type="date" value={fechaProyeccion} onChange={(e) => setFechaProyeccion(e.target.value)} style={{marginTop:10, padding:5, borderRadius:5, border:'1px solid #0288D1'}} />
-            <div style={{ textAlign: 'right', fontSize: '1.6rem', fontWeight: '900', color: '#0288D1' }}>${proyeccionLunes.toLocaleString()}</div>
+          <div className="card" style={{ borderTop: '5px solid #b454f9', background: '#e8c7ff', position: 'relative', height: '230px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <h3 style={{ color: '#363636', fontSize: '1.1rem' }}>🔮 Cobranza Estimada</h3>
+            <button onClick={() => setVerDetalleProyeccion(!verDetalleProyeccion)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'white', border: '1px solid #0288D1', borderRadius: '8px', padding: 5, cursor: 'pointer', zIndex: 10 }}>📋</button>
+            <input type="date" value={fechaProyeccion} onChange={(e) => setFechaProyeccion(e.target.value)} style={{ marginTop: 10, padding: 5, borderRadius: 5, border: '1px solid #0288D1', width: 'fit-content' }} />
+            <div style={{ textAlign: 'right', fontSize: '1.4rem', fontWeight: '900', color: '#363636', marginBottom: '5px' }}>${proyeccionLunes.toLocaleString()}</div>
+
             {verDetalleProyeccion && (
-                <div style={{ marginTop: '10px', background: 'white', padding: '10px', borderRadius: '10px', maxHeight: '100px', overflowY: 'auto', fontSize:12 }}>
-                    {alumnosProyeccion.length > 0 ? alumnosProyeccion.map((al, i) => <div key={i} style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid #eee', padding:'3px 0'}}><span>{al.nombre}</span><b>${al.monto}</b></div>) : <div style={{textAlign:'center', color:'#999'}}>No hay pagos programados.</div>}
-                </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '10px', overflowY: 'auto', maxHeight: '100px', fontSize: 12, border: '1px solid #b3e5fc' }}>
+                {alumnosProyeccion.length > 0 ? alumnosProyeccion.map((al, i) => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #eee', padding: '6px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 'bold' }}>{al.nombre}</span>
+                      <b style={{ color: '#0288D1' }}>${(Number(al.monto) || 0).toLocaleString()}</b>
+                    </div>
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '2px', alignItems: 'center' }}>
+                      <span className={`type-pill pill-${al.tipo?.toLowerCase()}`} style={{ fontSize: '0.55rem', padding: '1px 6px', margin: 0 }}>{al.tipo}</span>
+                      <span style={{ fontSize: '0.6rem', color: '#666', fontStyle: 'italic' }}>
+                        {obtenerSemanaDelCiclo({ fecha: al.fechaUltima, tipo: al.tipo }, fechaProyeccion)}
+                      </span>
+                    </div>
+                  </div>
+                )) : <div style={{ textAlign: 'center', color: '#999' }}>No hay pendientes.</div>}
+              </div>
             )}
           </div>
         </div>
@@ -385,11 +386,7 @@ const totalIngresosSemana = pagosEstaSemana.reduce((acc, p) => acc + (Number(p.m
                 <tr key={p.id}>
                   <td style={{textAlign:'left', paddingLeft:'20px'}}><b>{p.tutor.replace(/pago de|pago|de/gi, '').trim()}</b><br/><small style={{opacity: 0.7}}>{p.nivel}</small></td>
                   <td><span className={`type-pill pill-${p.tipo.toLowerCase()}`} style={{fontSize:'0.65rem', margin:0}}>{p.tipo}</span>{obtenerSemanaDelCiclo(p) && <div style={{fontSize:'0.65rem', fontWeight:'bold', marginTop:'4px'}}>{obtenerSemanaDelCiclo(p)}</div>}</td>
-                  <td>
-                  <b>
-                  ${Number(p.monto) ? Number(p.monto).toLocaleString() : p.monto}
-                  </b>
-                 </td>
+                  <td><b>${Number(p.monto) ? Number(p.monto).toLocaleString() : p.monto}</b></td>
                   <td style={{color: calcularEstadoPago(p.fecha,p.tipo).includes('⚠️') ? '#ce1414' : '#2E7D32', fontWeight:'bold'}}>{calcularEstadoPago(p.fecha,p.tipo)}<div style={{fontSize:'0.6rem', fontWeight:'normal', opacity:0.6}}>Inicio: {formatearFecha(p.fecha)}</div></td>
                   <td className="no-print"><button onClick={()=>deleteDoc(doc(db,"pagos",p.id))} style={{border:'none', background:'none'}}>🗑️</button></td>
                 </tr>
