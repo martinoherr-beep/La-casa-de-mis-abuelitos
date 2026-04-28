@@ -6,12 +6,20 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
 function App() {
+  // --- ESTADOS DE SEGURIDAD ---
+  const [autenticado, setAutenticado] = useState(false);
+  const [pin, setPin] = useState('');
+  const PIN_CORRECTO = "1707"; // <--- TU CONTRASEÑA
+
+  // --- ESTADOS DE DATOS ---
   const [pagos, setPagos] = useState([]);
   const [listaPapas, setListaPapas] = useState([]);
   const [productosCocina, setProductosCocina] = useState([]);
   const [gastosServicios, setGastosServicios] = useState({ luz: 0, agua: 0, nomina: 0 });
   const [fechaCalendario, setFechaCalendario] = useState(new Date());
-  
+  const [recordatorios, setRecordatorios] = useState([]);
+  const [textoRecordatorio, setTextoRecordatorio] = useState('');
+
   const [filtroNivelTab, setFiltroNivelTab] = useState(null); 
   const [busqueda, setBusqueda] = useState('');
   const [verDetalleProyeccion, setVerDetalleProyeccion] = useState(false);
@@ -24,8 +32,7 @@ function App() {
     fecha: new Date().toISOString().split('T')[0]
   });
 
-  const [recordatorios, setRecordatorios] = useState([]);
-  const [textoRecordatorio, setTextoRecordatorio] = useState('');
+  const [fechaProyeccion, setFechaProyeccion] = useState(new Date().toISOString().split('T')[0]);
 
   // --- LÓGICA DE REINICIO SEMANAL ---
   const getLunesActual = () => {
@@ -45,7 +52,18 @@ function App() {
     return domingo;
   };
 
-  const [fechaProyeccion, setFechaProyeccion] = useState(new Date().toISOString().split('T')[0]);
+  // --- LÓGICA DE LOGIN ---
+  const manejarPin = (num) => {
+    if (pin.length < 4) {
+      const nuevoPin = pin + num;
+      setPin(nuevoPin);
+      if (nuevoPin === PIN_CORRECTO) {
+        setTimeout(() => setAutenticado(true), 300);
+      } else if (nuevoPin.length === 4) {
+        setTimeout(() => setPin(''), 500); 
+      }
+    }
+  };
 
   useEffect(() => {
     onSnapshot(doc(db, "configuracion", "servicios"), (snapshot) => {
@@ -160,13 +178,11 @@ function App() {
   const balanceReal = totalIngresosSemana - totalMandadoPresupuestado - totalServicios;
   const totalPorTipo = (tipo) => pagosEstaSemana.filter(p => p.tipo === tipo).reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
 
-  // --- LOGICA BARRA EQUILIBRIO ---
   const totalServiciosNum = Number(totalServicios) || 0;
   const totalIngresosNum = Number(totalIngresosSemana) || 0;
   const porcentajeMeta = totalServiciosNum > 0 ? Math.min((totalIngresosNum / totalServiciosNum) * 100, 100) : 0;
   const faltaParaMeta = Math.max(0, totalServiciosNum - totalIngresosNum);
 
-  // --- LÓGICA DE COBRANZA ESTIMADA ---
   const alumnosProyeccion = listaPapas.map(papa => {
     const todosSusPagos = pagos.filter(p => p.tutor === papa.nombre).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const ultimoPago = todosSusPagos[0];
@@ -195,9 +211,96 @@ function App() {
   : filtroNivelTab ? pagosEstaSemana.filter(p => p.nivel === filtroNivelTab && p.tutor.toLowerCase().includes(busqueda.toLowerCase()))
   : pagosEstaSemana.filter(p => p.tutor.toLowerCase().includes(busqueda.toLowerCase()));
 
+// --- VISTA DE LOGIN ESTILO CALIGRAFÍA MODERNA ---
+  if (!autenticado) {
+    return (
+      <div style={{ 
+        height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', 
+        justifyContent: 'center', background: '#1a1a1a', color: 'white', 
+        fontFamily: 'Segoe UI', overflow: 'hidden' 
+      }}>
+        <div style={{ 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', 
+          width: '100%', maxWidth: '350px', padding: '10px' 
+        }}>
+          
+          <img src="https://res.cloudinary.com/dvikeqkst/image/upload/v1776960704/logo_casa_wxquvl.png" 
+               alt="Logo" style={{ width: '80px', marginBottom: '15px', borderRadius: '50%' }} />
+          
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+             <h2 style={{ fontWeight: '300', letterSpacing: '4px', fontSize: '0.65rem', opacity: 0.5, margin: '0 0 5px 0',  }}>ADMINISTRADOR</h2>
+             <h1 style={{ 
+               fontFamily: "'Dancing Script', cursive", 
+               fontSize: '2.8rem', // Aumentamos tamaño porque esta fuente es más delgada
+               color: '#fff', 
+               margin: '0',
+               fontWeight: '700', // Negrita para imitar el trazo grueso de la imagen
+               lineHeight: '1',
+               textShadow: '0 0 20px rgba(255,255,255,0.1)'
+             }}>
+               Tere Torres
+             </h1>
+          </div>
+          
+          {/* Puntos de PIN */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '25px' }}>
+            {[1, 2, 3, 4].map((_, i) => (
+              <div key={i} style={{ 
+                width: '14px', height: '14px', borderRadius: '50%', 
+                background: pin.length > i ? '#0288D1' : '#333', 
+                boxShadow: pin.length > i ? '0 0 10px #0288D1' : 'none',
+                transition: '0.3s' 
+              }}></div>
+            ))}
+          </div>
+
+          {/* Teclado numérico compacto */}
+          <div style={{ 
+            display: 'grid', gridTemplateColumns: 'repeat(3, 70px)', 
+            gap: '15px', justifyContent: 'center' 
+          }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+              <button key={num} onClick={() => manejarPin(num.toString())} style={{ 
+                height: '70px', width: '70px', borderRadius: '50%', border: '1px solid #444', 
+                background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '1.5rem', 
+                cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = 'rgba(2, 136, 209, 0.2)';
+                e.target.style.borderColor = '#0288D1';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'rgba(255,255,255,0.03)';
+                e.target.style.borderColor = '#444';
+              }}
+              >
+                {num}
+              </button>
+            ))}
+            <button style={{ background: 'transparent', border: 'none' }}></button>
+            <button onClick={() => manejarPin('0')} 
+              style={{ 
+                height: '70px', width: '70px', borderRadius: '50%', border: '1px solid #444', 
+                background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '1.5rem', cursor: 'pointer'
+              }}
+              onMouseOver={(e) => { e.target.style.background = 'rgba(2, 136, 209, 0.2)'; e.target.style.borderColor = '#0288D1'; }}
+              onMouseOut={(e) => { e.target.style.background = 'rgba(255,255,255,0.03)'; e.target.style.borderColor = '#444'; }}
+            >0</button>
+            <button onClick={() => setPin('')} style={{ 
+                border: 'none', background: 'transparent', color: '#0288D1', 
+                cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '1px'
+            }}>BORRAR</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="layout-root">
       <style>{`
+        
+       @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400..700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #eaeff5; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
         .layout-root { display: flex; justify-content: center; width: 100vw; min-height: 100vh; }
@@ -243,29 +346,12 @@ function App() {
         th { background: #F8FAFC; padding: 15px; font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
         td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; color: #333; }
         .dashboard-footer-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-@media (min-width: 992px) { .dashboard-footer-grid { grid-template-columns: 1.2fr 0.8fr; } }
+        @media (min-width: 992px) { .dashboard-footer-grid { grid-template-columns: 1.2fr 0.8fr; } }
         .react-calendar { border: none !important; width: 100% !important; border-radius: 12px; font-family: inherit !important; }
-        .react-calendar__tile {
-    color: #333 !important;
-}
-    .react-calendar__month-view__weekdays {
-    color: #666;
-    font-weight: bold;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-}
-
+        .react-calendar__tile { color: #333 !important; }
         .react-calendar__navigation button { color: #f31c1c; font-weight: bold; }
-        .react-calendar__tile--active { 
-    background: #f31c1c !important; 
-    color: white !important; 
-    border-radius: 8px; 
-}
-    .react-calendar__tile:enabled:hover,
-.react-calendar__tile:enabled:focus {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-}
+        .react-calendar__tile--active { background: #f31c1c !important; color: white !important; border-radius: 8px; }
+        @media print { .no-print { display: none !important; } }
       `}</style>
 
       {modoCelular && (
@@ -287,11 +373,14 @@ function App() {
 
       <div className="main-wrapper">
         <header className="header">
-          <img src="https://res.cloudinary.com/dvikeqkst/image/upload/v1776960704/logo_casa_wxquvl.png" alt="Logo" className="header-logo no-print" />
-          <div className="header-text-container"><h1>La Casa de mis Abuelitos</h1><p style={{ letterSpacing: '1px', fontSize: '0.85rem', color: '#64748B', margin: 0 }}>ADMINISTRACIÓN SEMANAL</p></div>
+          <div style={{display:'flex', width:'100%', justifyContent:'space-between', alignItems:'center'}}>
+            <img src="https://res.cloudinary.com/dvikeqkst/image/upload/v1776960704/logo_casa_wxquvl.png" alt="Logo" className="header-logo no-print" />
+            <div className="header-text-container" style={{textAlign:'center'}}><h1>La Casa de mis Abuelitos</h1><p style={{ letterSpacing: '1px', fontSize: '0.85rem', color: '#64748B', margin: 0 }}>ADMINISTRACIÓN SEMANAL</p></div>
+            <button onClick={() => setAutenticado(false)} style={{background:'none', border:'1px solid #ddd', padding:'8px', borderRadius:'10px', cursor:'pointer'}}>🔒</button>
+          </div>
         </header>
 
-        {/* ALERTA DE RECORDATORIOS HOY */}
+        {/* ALERTA RECORDATORIOS */}
         {recordatorios.filter(r => r.fecha === new Date().toISOString().split('T')[0]).length > 0 && (
           <div className="no-print" style={{ background: '#f31c1c', color: 'white', padding: '15px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(243, 28, 28, 0.3)' }}>
             <strong>📢 PENDIENTES PARA HOY:</strong>
@@ -418,36 +507,27 @@ function App() {
           <div className="card">
             <h3 style={{ color: '#333', marginBottom: '15px' }}>📅 Calendario y Agenda</h3>
             <Calendar onChange={setFechaCalendario} value={fechaCalendario} locale="es-MX" />
-            
             <form onSubmit={agregarRecordatorio} style={{ marginTop: '15px' }}>
               <input className="input-box" placeholder="Nuevo evento o pago..." value={textoRecordatorio} onChange={(e) => setTextoRecordatorio(e.target.value)} />
               <button type="submit" className="btn-submit" style={{ background: '#f31c1c', fontSize: '0.8rem', padding: '10px' }}>
                 Agendar para {fechaCalendario.toLocaleDateString('es-MX', {day: 'numeric', month: 'short'})}
               </button>
             </form>
-
-           <div style={{ marginTop: '15px', maxHeight: '120px', overflowY: 'auto', background: '#f8f9fa', padding: '10px', borderRadius: '10px' }}>
-  <small style={{ fontWeight: 'bold', color: '#666' }}>Eventos del día seleccionado:</small>
-  {recordatorios
-    .filter(r => r.fecha === fechaCalendario.toISOString().split('T')[0])
-    .map(r => (
-      <div key={r.id} style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', borderBottom: '1px dashed #ddd' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {/* Aquí mostramos el texto y la fecha formateada al lado */}
-          <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>
-            • {r.texto} <span style={{ color: '#ce1414', fontSize: '0.75rem', marginLeft: '5px' }}>({formatearFecha(r.fecha)})</span>
-          </span>
-          <button onClick={() => deleteDoc(doc(db, "recordatorios", r.id))} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>🗑️</button>
-        </div>
-      </div>
-    ))}
-  {recordatorios.filter(r => r.fecha === fechaCalendario.toISOString().split('T')[0]).length === 0 && (
-    <p style={{ fontSize: '0.7rem', color: '#999', marginTop: '5px' }}>Sin eventos agendados para este día.</p>
-  )}
-</div>
+            <div style={{ marginTop: '15px', maxHeight: '120px', overflowY: 'auto', background: '#f8f9fa', padding: '10px', borderRadius: '10px' }}>
+              <small style={{ fontWeight: 'bold', color: '#666' }}>Eventos del día seleccionado:</small>
+              {recordatorios.filter(r => r.fecha === fechaCalendario.toISOString().split('T')[0]).map(r => (
+                <div key={r.id} style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', borderBottom: '1px dashed #ddd', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>• {r.texto} <span style={{ color: '#ce1414', fontSize: '0.75rem', marginLeft: '5px' }}>({formatearFecha(r.fecha)})</span></span>
+                    <button onClick={() => deleteDoc(doc(db, "recordatorios", r.id))} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
+        {/* TABLA DE PAGOS */}
         <div className="card table-scroll" style={{padding:'0'}}>
           <div style={{padding:'20px', display:'flex', gap:'5px', flexWrap:'wrap'}}>
              <span onClick={()=>setFiltroNivelTab('Lactantes')} className={`type-pill ${filtroNivelTab==='Lactantes'?'pill-quincenal':''}`} style={{cursor:'pointer', backgroundColor: filtroNivelTab==='Lactantes'?'#0288D1':'#607D8B'}}>LACTANTES</span>
