@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { calcularEstadoPago, obtenerFechaVencimiento } from './logicaPagos';
 import { db } from './firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 function App() {
   const [pagos, setPagos] = useState([]);
   const [listaPapas, setListaPapas] = useState([]);
   const [productosCocina, setProductosCocina] = useState([]);
   const [gastosServicios, setGastosServicios] = useState({ luz: 0, agua: 0, nomina: 0 });
+  const [fechaCalendario, setFechaCalendario] = useState(new Date());
   
   const [filtroNivelTab, setFiltroNivelTab] = useState(null); 
   const [busqueda, setBusqueda] = useState('');
@@ -22,6 +25,7 @@ function App() {
   });
 
   const [recordatorios, setRecordatorios] = useState([]);
+  const [textoRecordatorio, setTextoRecordatorio] = useState('');
 
   // --- LÓGICA DE REINICIO SEMANAL ---
   const getLunesActual = () => {
@@ -131,10 +135,20 @@ function App() {
     return `Semana ${sem > lim ? 1 : sem} de ${lim}`;
   };
 
+  const agregarRecordatorio = async (e) => {
+    e.preventDefault();
+    if (!textoRecordatorio.trim()) return;
+    await addDoc(collection(db, "recordatorios"), {
+      texto: textoRecordatorio,
+      fecha: fechaCalendario.toISOString().split('T')[0],
+      completado: false
+    });
+    setTextoRecordatorio('');
+  };
+
   // --- CÁLCULOS SEMANALES ---
   const lunesRef = getLunesActual();
   const domingoRef = getDomingoActual();
-
   const pagosEstaSemana = pagos.filter(p => {
     const f = new Date(p.fecha + "T00:00:00");
     return f >= lunesRef && f <= domingoRef;
@@ -144,7 +158,6 @@ function App() {
   const totalMandadoPresupuestado = productosCocina.reduce((acc, p) => acc + (Number(p.precio) || 0), 0);
   const totalServicios = (Number(gastosServicios.luz) || 0) + (Number(gastosServicios.agua) || 0) + (Number(gastosServicios.nomina) || 0);
   const balanceReal = totalIngresosSemana - totalMandadoPresupuestado - totalServicios;
-  
   const totalPorTipo = (tipo) => pagosEstaSemana.filter(p => p.tipo === tipo).reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
 
   // --- LOGICA BARRA EQUILIBRIO ---
@@ -158,16 +171,13 @@ function App() {
     const todosSusPagos = pagos.filter(p => p.tutor === papa.nombre).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const ultimoPago = todosSusPagos[0];
     if (!ultimoPago) return null;
-
     const lunesC = new Date(fechaProyeccion + "T00:00:00");
     const domingoC = new Date(lunesC); 
     domingoC.setDate(lunesC.getDate() + 6);
-
     let fProx = new Date(ultimoPago.fecha + "T00:00:00");
     if (ultimoPago.tipo === 'Semanal') fProx.setDate(fProx.getDate() + 7);
     else if (ultimoPago.tipo === 'Quincenal') fProx.setDate(fProx.getDate() + 14);
     else if (ultimoPago.tipo === 'Mensual') fProx.setMonth(fProx.getMonth() + 1);
-
     if (fProx >= lunesC && fProx <= domingoC) {
         return { nombre: papa.nombre, monto: ultimoPago.monto, tipo: ultimoPago.tipo, fechaUltima: ultimoPago.fecha };
     }
@@ -232,7 +242,30 @@ function App() {
         .input-with-icon { padding-left: 40px !important; }
         th { background: #F8FAFC; padding: 15px; font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
         td { padding: 15px; border-bottom: 1px solid #F1F5F9; text-align: center; color: #333; }
-        @media print { .no-print { display: none !important; } }
+        .dashboard-footer-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 992px) { .dashboard-footer-grid { grid-template-columns: 1.2fr 0.8fr; } }
+        .react-calendar { border: none !important; width: 100% !important; border-radius: 12px; font-family: inherit !important; }
+        .react-calendar__tile {
+    color: #333 !important;
+}
+    .react-calendar__month-view__weekdays {
+    color: #666;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+
+        .react-calendar__navigation button { color: #f31c1c; font-weight: bold; }
+        .react-calendar__tile--active { 
+    background: #f31c1c !important; 
+    color: white !important; 
+    border-radius: 8px; 
+}
+    .react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
       `}</style>
 
       {modoCelular && (
@@ -257,6 +290,18 @@ function App() {
           <img src="https://res.cloudinary.com/dvikeqkst/image/upload/v1776960704/logo_casa_wxquvl.png" alt="Logo" className="header-logo no-print" />
           <div className="header-text-container"><h1>La Casa de mis Abuelitos</h1><p style={{ letterSpacing: '1px', fontSize: '0.85rem', color: '#64748B', margin: 0 }}>ADMINISTRACIÓN SEMANAL</p></div>
         </header>
+
+        {/* ALERTA DE RECORDATORIOS HOY */}
+        {recordatorios.filter(r => r.fecha === new Date().toISOString().split('T')[0]).length > 0 && (
+          <div className="no-print" style={{ background: '#f31c1c', color: 'white', padding: '15px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(243, 28, 28, 0.3)' }}>
+            <strong>📢 PENDIENTES PARA HOY:</strong>
+            <ul style={{ marginLeft: '20px', marginTop: '5px' }}>
+              {recordatorios.filter(r => r.fecha === new Date().toISOString().split('T')[0]).map(r => (
+                <li key={r.id}>{r.texto}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="summary-grid">
           <div className="card summary-card">
@@ -322,7 +367,7 @@ function App() {
           <div className="card" style={{ borderTop: '5px solid #5e81d9', background: '#b4c7f7' }}>
             <h3 style={{ color: '#383838', fontSize: '1.1rem' }}>📈 Punto de Equilibrio</h3>
             <div style={{ background: '#ffffff', borderRadius: '10px', height: '22px', overflow:'hidden', marginTop:10 }}><div style={{ background: porcentajeMeta >= 100 ? '#4CAF50' : '#FF9800', height: '100%', width: `${porcentajeMeta}%`, color:'darkgrey', textAlign:'center', fontSize:12, fontWeight: 'bold', transition: 'width 0.5s ease' }}>{Math.round(porcentajeMeta)}%</div></div>
-            <div style={{textAlign:'right', marginTop:5,color: '#272727'}}>{porcentajeMeta >= 100 ? '✅ Cubierto' : `Faltan: $${faltaParaMeta.toLocaleString()}`}</div>
+            <div style={{textAlign:'right', marginTop:5, color: '#272727', fontWeight: 'bold'}}>{porcentajeMeta >= 100 ? '✅ Cubierto' : `Faltan: $${faltaParaMeta.toLocaleString()}`}</div>
           </div>
 
           <div className="card" style={{ borderTop: '5px solid #b454f9', background: '#e8c7ff', position: 'relative', height: '230px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -330,7 +375,6 @@ function App() {
             <button onClick={() => setVerDetalleProyeccion(!verDetalleProyeccion)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'white', border: '1px solid #0288D1', borderRadius: '8px', padding: 5, cursor: 'pointer', zIndex: 10 }}>📋</button>
             <input type="date" value={fechaProyeccion} onChange={(e) => setFechaProyeccion(e.target.value)} style={{ marginTop: 10, padding: 5, borderRadius: 5, border: '1px solid #0288D1', width: 'fit-content' }} />
             <div style={{ textAlign: 'right', fontSize: '1.4rem', fontWeight: '900', color: '#363636', marginBottom: '5px' }}>${proyeccionLunes.toLocaleString()}</div>
-
             {verDetalleProyeccion && (
               <div style={{ background: 'white', padding: '10px', borderRadius: '10px', overflowY: 'auto', maxHeight: '100px', fontSize: 12, border: '1px solid #b3e5fc' }}>
                 {alumnosProyeccion.length > 0 ? alumnosProyeccion.map((al, i) => (
@@ -352,21 +396,55 @@ function App() {
           </div>
         </div>
 
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ color: '#ce1414' }}>🛒 Lista del Mandado</h3>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="no-print" onClick={resetearCocina} style={{ background: '#6a6a6a', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🔄 RESET</button>
-              <button className="no-print" onClick={() => setModoCelular(true)} style={{ background: '#2b2b2b', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🛒 MODO SÚPER</button>
+        <div className="dashboard-footer-grid">
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ color: '#ce1414' }}>🛒 Lista del Mandado</h3>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="no-print" onClick={resetearCocina} style={{ background: '#6a6a6a', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🔄 RESET</button>
+                <button className="no-print" onClick={() => setModoCelular(true)} style={{ background: '#2b2b2b', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.7rem' }}>🛒 MODO SÚPER</button>
+              </div>
+            </div>
+            <form onSubmit={agregarProductoCocina}><input className="notebook-add-input" placeholder="+ Producto..." value={nuevoItemCocina} onChange={(e)=>setNuevoItemCocina(e.target.value)} /></form>
+            <div className="notebook"><div className="notebook-content">
+                {productosCocina.map(p => (
+                  <div key={p.id} className="product-row" style={{ opacity: p.comprado ? 0.5 : 1 }}><div className="product-left"><button className="btn-delete-item no-print" onClick={() => eliminarProductoCocina(p.id)}>✖</button><input type="checkbox" checked={p.comprado || false} onChange={() => toggleComprado(p.id, p.comprado)} /><span className="product-name" style={{ textDecoration: p.comprado ? 'line-through' : 'none' }}>• {p.nombre}</span></div><span>$ <input type="number" className="notebook-input" value={p.precio} onChange={(e)=>updateDoc(doc(db,"cocina",p.id),{precio:parseFloat(e.target.value)||0})} /></span></div>
+                ))}
+              </div>
+              <div style={{marginTop:'auto', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:10}}><strong>Mandado: ${totalMandadoPresupuestado.toLocaleString()}</strong><button className="no-print" onClick={consultarMenuIA} style={{display: 'block', width: '100%', padding: '10px', borderRadius: '10px', background: 'linear-gradient(45deg, #7B1FA2, #0288D1)', color: 'white', fontWeight: 'bold', border:'none', marginTop:10}}>✨ SUGERIR MENÚS IA</button></div>
             </div>
           </div>
-          <form onSubmit={agregarProductoCocina}><input className="notebook-add-input" placeholder="+ Producto..." value={nuevoItemCocina} onChange={(e)=>setNuevoItemCocina(e.target.value)} /></form>
-          <div className="notebook"><div className="notebook-content">
-              {productosCocina.map(p => (
-                <div key={p.id} className="product-row" style={{ opacity: p.comprado ? 0.5 : 1 }}><div className="product-left"><button className="btn-delete-item no-print" onClick={() => eliminarProductoCocina(p.id)}>✖</button><input type="checkbox" checked={p.comprado || false} onChange={() => toggleComprado(p.id, p.comprado)} /><span className="product-name" style={{ textDecoration: p.comprado ? 'line-through' : 'none' }}>• {p.nombre}</span></div><span>$ <input type="number" className="notebook-input" value={p.precio} onChange={(e)=>updateDoc(doc(db,"cocina",p.id),{precio:parseFloat(e.target.value)||0})} /></span></div>
-              ))}
-            </div>
-            <div style={{marginTop:'auto', textAlign:'right', borderTop:'2px solid #ce1414', paddingTop:10}}><strong>Mandado: ${totalMandadoPresupuestado.toLocaleString()}</strong><button className="no-print" onClick={consultarMenuIA} style={{display: 'block', width: '100%', padding: '10px', borderRadius: '10px', background: 'linear-gradient(45deg, #7B1FA2, #0288D1)', color: 'white', fontWeight: 'bold', border:'none', marginTop:10}}>✨ SUGERIR MENÚS IA</button></div>
+
+          <div className="card">
+            <h3 style={{ color: '#333', marginBottom: '15px' }}>📅 Calendario y Agenda</h3>
+            <Calendar onChange={setFechaCalendario} value={fechaCalendario} locale="es-MX" />
+            
+            <form onSubmit={agregarRecordatorio} style={{ marginTop: '15px' }}>
+              <input className="input-box" placeholder="Nuevo evento o pago..." value={textoRecordatorio} onChange={(e) => setTextoRecordatorio(e.target.value)} />
+              <button type="submit" className="btn-submit" style={{ background: '#f31c1c', fontSize: '0.8rem', padding: '10px' }}>
+                Agendar para {fechaCalendario.toLocaleDateString('es-MX', {day: 'numeric', month: 'short'})}
+              </button>
+            </form>
+
+           <div style={{ marginTop: '15px', maxHeight: '120px', overflowY: 'auto', background: '#f8f9fa', padding: '10px', borderRadius: '10px' }}>
+  <small style={{ fontWeight: 'bold', color: '#666' }}>Eventos del día seleccionado:</small>
+  {recordatorios
+    .filter(r => r.fecha === fechaCalendario.toISOString().split('T')[0])
+    .map(r => (
+      <div key={r.id} style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', borderBottom: '1px dashed #ddd' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Aquí mostramos el texto y la fecha formateada al lado */}
+          <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>
+            • {r.texto} <span style={{ color: '#ce1414', fontSize: '0.75rem', marginLeft: '5px' }}>({formatearFecha(r.fecha)})</span>
+          </span>
+          <button onClick={() => deleteDoc(doc(db, "recordatorios", r.id))} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>🗑️</button>
+        </div>
+      </div>
+    ))}
+  {recordatorios.filter(r => r.fecha === fechaCalendario.toISOString().split('T')[0]).length === 0 && (
+    <p style={{ fontSize: '0.7rem', color: '#999', marginTop: '5px' }}>Sin eventos agendados para este día.</p>
+  )}
+</div>
           </div>
         </div>
 
